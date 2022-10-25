@@ -1,40 +1,78 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use std::{fs::File, thread};
-use std::io::BufReader;
+use std::fs::read;
+use std::io::{BufReader, Cursor};
+use std::thread;
+use std::sync::{Arc, RwLock};
+use std::collections::{BinaryHeap, HashMap};
 
 use rodio::{Decoder, OutputStream, source::Source};
 use eframe::egui;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 
+mod sound_data;
+use sound_data::SoundData;
+
+
 fn main() {
+    // Crossbeam channel from main thread to playback thread
     let (sender, receiver) = unbounded();
 
-    thread::spawn(move || { playback(receiver) });
+    // Build app with shared state
+    let shared = Arc::new(RwLock::new(SharedState::default()));
+    let mut app = App::new(sender, shared.clone());
 
+    // Start playback thread
+    thread::spawn(move || { playback(receiver, shared.clone()) });
+    
+    // Load test sounds
+    let sound_filenames = vec![
+        "samples/kick.wav",
+        "samples/snare.wav",
+        "samples/hihat.wav"
+    ];
+
+    for filename in sound_filenames {
+        app.add_sound(filename.to_string());
+    }
+
+    // Start GUI in main thread
     let options = eframe::NativeOptions::default();
     eframe::run_native(
         "State Machine",
         options,
-        Box::new(|_cc| Box::new(
-            State::new(
-                sender,
-                vec![
-                    "samples/kick.wav".into(),
-                    "samples/snare.wav".into(),
-                    "samples/hihat.wav".into()
-                ]
-            )
-        )),
+        Box::new(|_cc| Box::new(app)),
     );
 }
 
 enum Message {
-    Play(String),
-    LoadSample
+    PlaySound(SoundID),
+    LoadSoundData(SoundID)
 }
 
-fn playback(receiver: Receiver<Message>) {
+type SoundID = usize;
+
+struct Sound {
+    id: SoundID,
+    filename: String,
+    connections: Vec<Connection>
+}
+
+enum Delay {
+    Milliseconds(u32),
+    Tempo {
+        count: u32,
+        division: u32,
+        swing: f32
+    }
+}
+
+struct Connection {
+    target: SoundID,
+    delay: Delay
+}
+
+fn playback(receiver: Receiver<Message>, shared: Arc<RwLock<SharedState>>) {
     // TICK = 1 ms (or e.g. 500 ms for 120 bpm)
     //      (collect some data on timing)
     // (1) use priority queue to play sounds with tick = 0
@@ -45,41 +83,90 @@ fn playback(receiver: Receiver<Message>) {
     
     let (_stream, stream_handle) = OutputStream::try_default().unwrap();
 
+    // let mut heap = BinaryHeap::new();
+    let mut sound_data_map: HashMap<SoundID, SoundData> = HashMap::new();
+
     loop {
-        if let Ok(Message::Play(path)) = receiver.recv() {
-            let file = BufReader::new(File::open(path).unwrap());
-            let source = Decoder::new(file).unwrap();
-            let duration = source.total_duration();
-    
-            stream_handle.play_raw(source.convert_samples()).unwrap();
+        if let Ok(msg) = receiver.recv() {
+            use crate::Message::*;
+            match msg {
+                PlaySound(id) => {
+                    if let Some(sound_data) = sound_data_map.get(&id) {
+                        stream_handle.play_raw(sound_data.decoder().convert_samples()).unwrap();
+                    } else {
+                        panic!("Invalid ID");
+                    }
+                },
+                LoadSoundData(id) => {
+                    if let Some(sound) = shared.read().unwrap().sounds.get(&id) {
+                        if let Ok(sound_data) = SoundData::load(&sound.filename) {
+                            sound_data_map.insert(id, sound_data);
+                        }
+                    }
+                }
+            }
         }
     }   
     
 }
 
-struct State {
+#[derive(Clone)]
+struct App {
     sender: Sender<Message>,
-    sample_filenames: Vec<String>
+    shared: Arc<RwLock<SharedState>>,
+    id_counter: usize
 }
 
-impl State {
-    fn new(sender: Sender<Message>, sample_filenames: Vec<String>) -> Self {
+struct SharedState {
+    sounds: HashMap<SoundID, Sound>,
+}
+
+impl Default for SharedState {
+    fn default() -> Self {
         Self {
-            sender: sender,
-            sample_filenames: sample_filenames
+            sounds: HashMap::new()
         }
     }
 }
 
-impl eframe::App for State {
+impl App {
+    fn new(sender: Sender<Message>, shared: Arc<RwLock<SharedState>>) -> Self {
+        Self {
+            sender,
+            shared,
+            id_counter: 0
+        }
+    }
+
+    fn add_sound(&mut self, filename: String) -> SoundID {
+        let id = self.id_counter;
+        self.shared.write().unwrap().sounds.insert(
+            id,
+            Sound {
+                id,
+                filename,
+                connections: Vec::new()
+            }
+        );
+        self.sender.send(Message::LoadSoundData(id)).unwrap();
+        self.id_counter += 1;
+        id
+    }
+
+    fn add_connection(&self, connection: Connection) {
+
+    }
+}
+
+impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Samples:");
-            for filename in &self.sample_filenames {
+            for (id, sound) in self.shared.read().unwrap().sounds.iter() {
                 ui.horizontal(|ui| {
-                    ui.label(filename);
+                    ui.label(&sound.filename);
                     if ui.button("Play").clicked() {
-                        self.sender.send(Message::Play(filename.to_string())).unwrap();
+                        self.sender.send(Message::PlaySound(sound.id)).unwrap();
                     }
                 });
             }
