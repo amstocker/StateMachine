@@ -8,6 +8,28 @@ use std::convert::AsRef;
 use std::sync::Arc;
 
 
+pub type SoundID = usize;
+
+pub struct Sound {
+    pub id: SoundID,
+    pub filename: String,
+    pub connections: Vec<Connection>
+}
+
+pub enum Delay {
+    Milliseconds(u32),
+    Tempo {
+        count: u32,
+        division: u32,
+        swing: f32
+    }
+}
+
+pub struct Connection {
+    target: SoundID,
+    delay: Delay
+}
+
 pub struct SoundData(Arc<Vec<u8>>);
 
 impl AsRef<[u8]> for SoundData {
