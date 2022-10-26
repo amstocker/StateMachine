@@ -1,12 +1,15 @@
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::collections::HashMap;
 
 use crossbeam_channel::Receiver;
+use parking_lot::RwLock;
 use rodio::{OutputStream, source::Source};
 
 use crate::app::{Message, SharedState};
 use crate::sound::{SoundID, SoundData};
 
+
+// probably want to create some kind of AudioEngine struct with start method?
 
 pub fn start_playback(receiver: Receiver<Message>, shared: Arc<RwLock<SharedState>>) {
     // TICK = 1 ms (or e.g. 500 ms for 120 bpm)
@@ -33,7 +36,7 @@ pub fn start_playback(receiver: Receiver<Message>, shared: Arc<RwLock<SharedStat
                     }
                 },
                 Message::LoadSoundData(id) => {
-                    if let Some(sound) = shared.read().unwrap().sounds.get(&id) {
+                    if let Some(sound) = shared.read().sounds.get(&id) {
                         if let Ok(sound_data) = SoundData::load(&sound.filename) {
                             sound_data_map.insert(id, sound_data);
                         }
