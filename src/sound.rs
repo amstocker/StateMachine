@@ -1,7 +1,3 @@
-/* Source:
- *  https://github.com/RustAudio/rodio/issues/141
- */
-
 use std::io;
 use std::fs;
 use std::convert::AsRef;
@@ -13,9 +9,9 @@ pub type SoundID = usize;
 pub struct Sound {
     pub id: SoundID,
     pub filename: String,
-    pub connections: Vec<Connection>
 }
 
+#[derive(Clone)]
 pub enum Delay {
     Milliseconds(u32),
     Tempo {
@@ -25,11 +21,16 @@ pub enum Delay {
     }
 }
 
-pub struct Connection {
-    target: SoundID,
-    delay: Delay
+#[derive(Clone)]
+pub struct TriggerInfo {
+    pub target: SoundID,
+    pub delay: Delay
 }
 
+
+/* Source:
+ *  https://github.com/RustAudio/rodio/issues/141
+ */
 pub struct SoundData(Arc<Vec<u8>>);
 
 impl AsRef<[u8]> for SoundData {

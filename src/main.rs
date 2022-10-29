@@ -2,8 +2,10 @@
 mod app;
 mod playback;
 mod sound;
+mod ui;
 
 use app::App;
+use sound::{TriggerInfo, Delay};
 
 
 fn main() {
@@ -17,6 +19,11 @@ fn main() {
     for filename in sound_filenames {
         app.add_sound(filename.to_string());
     }
+
+    app.add_trigger(0, TriggerInfo {
+        target: 0,
+        delay: Delay::Milliseconds(500)
+    });
 
     app.run();
 }

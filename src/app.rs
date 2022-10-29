@@ -2,34 +2,37 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread;
 
-use eframe::egui;
 use crossbeam_channel::{unbounded, Sender, Receiver};
 use parking_lot::RwLock;
+use eframe::egui;
 
 use crate::sound::*;
 use crate::playback::*;
 
 pub enum Message {
     PlaySound(SoundID),
-    LoadSoundData(SoundID)
+    LoadSoundData(SoundID),
+    //DeleteSoundData(SoundID)
 }
 
 pub struct App {
-    sender: Sender<Message>,
-    receiver: Receiver<Message>,
-    shared: Arc<RwLock<SharedState>>,
+    pub sender: Sender<Message>,
+    pub receiver: Receiver<Message>,
+    pub trigger_map: HashMap<SoundID, Vec<TriggerInfo>>,
+    pub shared: SharedState,
     id_counter: usize,
-    queue_for_remove: Vec<SoundID>
+    pub queue_for_remove: Vec<SoundID>
 }
 
+#[derive(Clone)]
 pub struct SharedState {
-    pub sounds: HashMap<SoundID, Sound>,
+    pub sounds: Arc<RwLock<HashMap<SoundID, Sound>>>,
 }
 
 impl Default for SharedState {
     fn default() -> Self {
         Self {
-            sounds: HashMap::new()
+            sounds: Arc::new(RwLock::new(HashMap::new()))
         }
     }
 }
@@ -40,21 +43,25 @@ impl App {
         Self {
             sender,
             receiver,
-            shared: Arc::new(RwLock::new(SharedState::default())),
+            trigger_map: HashMap::new(),
+            shared: SharedState::default(),
             id_counter: 0,
             queue_for_remove: Vec::new()
         }
     }
 
     pub fn run(self) {
-        // Start playback thread
         let receiver = self.receiver.clone();
         let shared = self.shared.clone();
-        thread::spawn(move || { start_playback(receiver, shared) });
+        let trigger_map = self.trigger_map.clone();
+        thread::spawn(move || { start_playback(receiver, trigger_map, shared) });
 
-        // Start GUI in main thread
         let options = eframe::NativeOptions {
-            drag_and_drop_support: true,
+            // Hide the OS-specific "chrome" around the window:
+            decorated: false,
+            // To have rounded corners we need transparency:
+            //transparent: true,
+            min_window_size: Some(egui::vec2(320.0, 100.0)),
             ..Default::default()
         };
         eframe::run_native(
@@ -65,13 +72,14 @@ impl App {
     }
 
     pub fn add_sound(&mut self, filename: String) -> SoundID {
+        // TODO: Use Pathbuf instead of filename, then display just the filename
+        // use path for path, filename for just the filename!
         let id = self.id_counter;
-        self.shared.write().sounds.insert(
+        self.shared.sounds.write().insert(
             id,
             Sound {
                 id,
                 filename,
-                connections: Vec::new()
             }
         );
         self.sender.send(Message::LoadSoundData(id)).unwrap();
@@ -79,40 +87,11 @@ impl App {
         id
     }
 
-    pub fn add_connection(&self, connection: Connection) {
-
+    pub fn add_trigger(&mut self, id: SoundID, trigger: TriggerInfo) {
+        if let Some(triggers) = self.trigger_map.get_mut(&id) {
+            triggers.push(trigger);
+        }
     }
 }
 
-impl eframe::App for App {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            
-            ui.heading("Samples:");
 
-            for (id, sound) in self.shared.read().sounds.iter() {
-                ui.horizontal(|ui| {
-                    ui.monospace(&sound.filename);
-                    if ui.button("Play").clicked() {
-                        self.sender.send(Message::PlaySound(sound.id)).unwrap();
-                    }
-                    if ui.button("Remove").clicked() {
-                        self.queue_for_remove.push(*id);
-                    }
-                });
-            }
-            while !self.queue_for_remove.is_empty() {
-                if let Some(id) = self.queue_for_remove.pop() {
-                    self.shared.write().sounds.remove(&id);
-                }
-            }
-
-
-            if ui.button("Open file…").clicked() {
-                if let Some(filename) = rfd::FileDialog::new().pick_file() {
-                    self.add_sound(filename.display().to_string());
-                }
-            }
-        });
-    }
-}
