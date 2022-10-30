@@ -9,11 +9,15 @@ use app::App;
 fn main() {
     let mut app = App::new();
 
-    let sound_filenames = vec![
+    let sounds = vec![
         "samples/kick.wav",
         "samples/snare.wav",
         "samples/hihat.wav"
     ];
+
+    for path in sounds {
+        app.add_sound(path.to_string());
+    }
 
     app.run();
 }

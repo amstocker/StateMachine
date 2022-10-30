@@ -4,19 +4,21 @@ use crossbeam_channel::Sender;
 use eframe::egui;
 
 use crate::app::*;
-use crate::playback::Message;
+use crate::playback::PlaybackControlMessage;
 
 
 // how to properly abstract UI?
 
 pub struct UI {
-    app_state: Arc<State>
+    app_state: Arc<State>,
+    playback_control: Sender<PlaybackControlMessage>
 }
 
 impl UI {
-    pub fn new(app_state: Arc<State>, sender: Sender<Message>) -> Self {
+    pub fn new(app_state: Arc<State>, playback_control: Sender<PlaybackControlMessage>) -> Self {
         Self {
-            app_state
+            app_state,
+            playback_control
         }
     }
 
@@ -59,13 +61,26 @@ impl eframe::App for UI {
             }
 
             ui.heading("Samples");
-            //for sound in &self.state.graph.sounds {
-            //}
+            for (id, sound) in self.app_state.sounds.read().iter() {
+                ui.group(|ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("({})", id));
+                        ui.monospace(&sound.name);
+                    });
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        if ui.button("Play").clicked() {
+                            self.playback_control.send(PlaybackControlMessage::Play(sound.id)).unwrap();
+                            self.playback_control.send(PlaybackControlMessage::Pause).unwrap();
+                        }
+                    });
+                });
+            }
 
             ui.group(|ui| {
                 if ui.button("Add Sample").clicked() {
                     if let Some(filename) = rfd::FileDialog::new().pick_file() {
-                        //self.add_sound(filename.display().to_string());
+                        App::add_sound_to_state(self.app_state.clone(), filename.display().to_string());
                     }
                 }
             });

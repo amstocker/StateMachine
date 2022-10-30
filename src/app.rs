@@ -12,8 +12,6 @@ pub struct App {
     pub state: Arc<State>,
     pub engine: Engine,
     pub ui: UI,
-    sender: Sender<Message>,
-    receiver: Receiver<Message>
 }
 
 pub struct State {
@@ -38,8 +36,6 @@ impl App {
             state: state.clone(),
             engine: Engine::new(state.clone(), receiver.clone()),
             ui: UI::new(state.clone(), sender.clone()),
-            sender,
-            receiver
         }
     }
 
@@ -48,6 +44,17 @@ impl App {
         self.engine.run();
         // UI runs in main thread
         self.ui.run();
+    }
+
+    pub fn add_sound_to_state(app_state: Arc<State>, path: String) {
+        let mut sounds = app_state.sounds.write();
+        let sound = Sound::new(path);
+        sounds.insert(sound.id, sound);
+    }
+
+    pub fn add_sound(&mut self, path: String) {
+        let app_state = self.state.clone();
+        Self::add_sound_to_state(app_state, path);
     }
 }
 
