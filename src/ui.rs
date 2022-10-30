@@ -1,12 +1,43 @@
+use std::sync::Arc;
+
+use crossbeam_channel::Sender;
 use eframe::egui;
 
 use crate::app::*;
-use crate::sound::*;
+use crate::playback::Message;
 
 
 // how to properly abstract UI?
 
-impl eframe::App for App {
+pub struct UI {
+    app_state: Arc<State>
+}
+
+impl UI {
+    pub fn new(app_state: Arc<State>, sender: Sender<Message>) -> Self {
+        Self {
+            app_state
+        }
+    }
+
+    pub fn run(self) {
+        let options = eframe::NativeOptions {
+            // Hide the OS-specific "chrome" around the window:
+            decorated: false,
+            // To have rounded corners we need transparency:
+            //transparent: true,
+            min_window_size: Some(egui::vec2(320.0, 100.0)),
+            ..Default::default()
+        };
+        eframe::run_native(
+            "State Machine",
+            options,
+            Box::new(|_cc| Box::new(self)),
+        );
+    }
+}
+
+impl eframe::App for UI {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             use eframe::egui::*;
@@ -28,61 +59,13 @@ impl eframe::App for App {
             }
 
             ui.heading("Samples");
-            for (id, sound) in self.shared.sounds.read().iter() {
-                ui.group(|ui| {
-                    ui.horizontal(|ui| {
-                        ui.label(format!("({})", id));
-                        ui.monospace(&sound.filename);
-                    });
-                    ui.separator();
-                    ui.horizontal(|ui| {
-                        ui.label("Triggers:");
-                        ui.vertical(|ui| {
-                            if let Some(triggers) = self.trigger_map.get(&id) {
-                                for trigger in triggers {
-                                    ui.horizontal(|ui| {
-                                        // TODO: change trigger and delay to editable fields
-                                        ui.label("To:");
-                                        ui.label(format!("({})", trigger.target));
-                                        ui.label("Delay:");
-                                        match trigger.delay {
-                                            Delay::Milliseconds(ms) => {
-                                                ui.label(format!("{} ms", ms));
-                                            },
-                                            Delay::Tempo { count, division, swing } => {
-    
-                                            }
-                                        }
-                                    });
-                                }
-                            }
-                            if ui.button("Add").clicked() {
-                                //self.add_connection(id, connection)
-                            }
-                        });
-                    });
-                    ui.separator();
-                    ui.horizontal(|ui| {
-                        if ui.button("Play").clicked() {
-                            self.sender.send(Message::PlaySound(sound.id)).unwrap();
-                        }
-                        if ui.button("Remove").clicked() {
-                            self.queue_for_remove.push(*id);
-                        }
-                        
-                    });
-                });
-            }
-            while !self.queue_for_remove.is_empty() {
-                if let Some(id) = self.queue_for_remove.pop() {
-                    self.shared.sounds.write().remove(&id);
-                }
-            }
+            //for sound in &self.state.graph.sounds {
+            //}
 
             ui.group(|ui| {
                 if ui.button("Add Sample").clicked() {
                     if let Some(filename) = rfd::FileDialog::new().pick_file() {
-                        self.add_sound(filename.display().to_string());
+                        //self.add_sound(filename.display().to_string());
                     }
                 }
             });

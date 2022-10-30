@@ -1,32 +1,41 @@
 use std::io;
 use std::fs;
 use std::convert::AsRef;
+use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 
 
 pub type SoundID = usize;
 
+fn generate_id() -> SoundID {
+    static COUNTER:AtomicUsize = AtomicUsize::new(0);
+    COUNTER.fetch_add(1, Ordering::Relaxed)
+}
+
 pub struct Sound {
     pub id: SoundID,
-    pub filename: String,
+    pub path: PathBuf,
+    pub name: String,
+    pub data: SoundData
 }
 
-#[derive(Clone)]
-pub enum Delay {
-    Milliseconds(u32),
-    Tempo {
-        count: u32,
-        division: u32,
-        swing: f32
+impl Sound {
+    pub fn new(path: String) -> Self {
+        let path = PathBuf::from(path);
+        let name =  path.file_name().unwrap()
+            .to_str().unwrap()
+            .to_owned();
+        let data = SoundData::load(&path).unwrap();
+        Self {
+            id: generate_id(),
+            path,
+            name,
+            data
+        }
     }
 }
-
-#[derive(Clone)]
-pub struct TriggerInfo {
-    pub target: SoundID,
-    pub delay: Delay
-}
-
 
 /* Source:
  *  https://github.com/RustAudio/rodio/issues/141
@@ -40,8 +49,8 @@ impl AsRef<[u8]> for SoundData {
 }
 
 impl SoundData {
-    pub fn load(filename: &str) -> io::Result<SoundData> {
-        let buf = fs::read(filename).unwrap();
+    pub fn load(path: &PathBuf) -> io::Result<SoundData> {
+        let buf = fs::read(path)?;
         Ok(SoundData(Arc::new(buf)))
     }
     pub fn cursor(self: &Self) -> io::Cursor<SoundData> {
