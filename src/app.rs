@@ -56,6 +56,11 @@ impl App {
         let app_state = self.state.clone();
         Self::add_sound_to_state(app_state, path);
     }
+
+    pub fn add_link(&mut self, link: Link) {
+        let mut graph = self.state.graph.write();
+        graph.add_link(link);
+    }
 }
 
 

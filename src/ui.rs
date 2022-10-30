@@ -7,8 +7,6 @@ use crate::app::*;
 use crate::playback::PlaybackControlMessage;
 
 
-// how to properly abstract UI?
-
 pub struct UI {
     app_state: Arc<State>,
     playback_control: Sender<PlaybackControlMessage>
@@ -41,6 +39,8 @@ impl UI {
 
 impl eframe::App for UI {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        use PlaybackControlMessage::*;
+
         egui::CentralPanel::default().show(ctx, |ui| {
             use eframe::egui::*;
 
@@ -69,9 +69,15 @@ impl eframe::App for UI {
                     });
                     ui.separator();
                     ui.horizontal(|ui| {
+                        if ui.button("Trigger").clicked() {
+                            self.playback_control.send(Play(*id)).unwrap();
+                            self.playback_control.send(Pause).unwrap();
+                        }
                         if ui.button("Play").clicked() {
-                            self.playback_control.send(PlaybackControlMessage::Play(sound.id)).unwrap();
-                            self.playback_control.send(PlaybackControlMessage::Pause).unwrap();
+                            self.playback_control.send(Play(*id)).unwrap();
+                        }
+                        if ui.button("Pause").clicked() {
+                            self.playback_control.send(Pause).unwrap();
                         }
                     });
                 });

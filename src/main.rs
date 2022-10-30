@@ -5,6 +5,7 @@ mod playback;
 mod ui;
 
 use app::App;
+use playback::{Link, Delay};
 
 fn main() {
     let mut app = App::new();
@@ -18,6 +19,12 @@ fn main() {
     for path in sounds {
         app.add_sound(path.to_string());
     }
+
+    app.add_link(Link {
+        source: 0,
+        target: 0,
+        delay: Delay::Milliseconds(500)
+    });
 
     app.run();
 }
