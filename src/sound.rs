@@ -10,7 +10,7 @@ use std::sync::atomic::Ordering;
 pub type SoundID = usize;
 
 fn generate_id() -> SoundID {
-    static COUNTER:AtomicUsize = AtomicUsize::new(0);
+    static COUNTER: AtomicUsize = AtomicUsize::new(0);
     COUNTER.fetch_add(1, Ordering::Relaxed)
 }
 

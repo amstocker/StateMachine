@@ -2,6 +2,7 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::thread;
+use std::cmp::min;
 
 use crossbeam_channel::Receiver;
 use rodio::OutputStreamHandle;
@@ -87,6 +88,7 @@ pub struct Engine {
     events_to_queue: Vec<TriggerEvent>,
     sounds_to_play: Vec<SoundID>,
     output_stream_handle: Option<OutputStreamHandle>,
+    last_tick: Instant
 }
 
 impl Engine {
@@ -99,6 +101,7 @@ impl Engine {
             events_to_queue: Vec::new(),
             sounds_to_play: Vec::new(),
             output_stream_handle: None,
+            last_tick: Instant::now()
         }
     }
 
@@ -115,49 +118,58 @@ impl Engine {
     }
 
     pub fn handle_event_queue(&mut self) {
+        println!("elapsed since last tick: {:?}", self.last_tick.elapsed());
+        self.last_tick = Instant::now();
+        
         let graph = &self.app_state.graph.read();
-        let now = Instant::now();
+        let mut min_time_until = Duration::from_micros(1_000_000);
         for (id, event_queue) in &mut self.event_queue_map {
             while let Some(event) = event_queue.front() {
-                if now.duration_since(event.created) >= event.time_until {
+                let time_until = event.time_until.saturating_sub(event.created.elapsed());
+                if event.created.elapsed() >= event.time_until {
                     self.sounds_to_play.push(*id);
                     event_queue.pop_front();
                     
                     if let Some(links) = graph.link_map.get(&id) {
                         for link in links {
+                            let time_until = delay_to_duration(link.delay);
+                            min_time_until = min(min_time_until, time_until);
                             self.events_to_queue.push(TriggerEvent { 
                                 sound_id: link.target,
                                 created: Instant::now(),
-                                time_until: delay_to_duration(link.delay)
+                                time_until
                             });
                         }
                     }
                 } else {
+                    min_time_until = min(min_time_until, time_until);
                     break;
                 }
             }
         }
         drop(graph);
+
         let sounds = &self.app_state.sounds.read();
         if let Some(stream_handle) = &self.output_stream_handle {
             for id in self.sounds_to_play.drain(..) {
-                println!("Playing Sound: SoundID({})", id);
                 let sound_data = &sounds.get(&id).unwrap().data;
                 stream_handle.play_raw(sound_data.decoder().convert_samples()).unwrap();
             }
         }
         drop(sounds);
+
         for event in self.events_to_queue.drain(..) {
             if let Some(event_queue) = self.event_queue_map.get_mut(&event.sound_id) {
-
                 event_queue.push_back(event);
             } else {
                 let mut event_queue = VecDeque::new();
                 let id = event.sound_id;
                 event_queue.push_back(event);
-                self.event_queue_map.insert(id, VecDeque::new());
+                self.event_queue_map.insert(id, event_queue);
             }
         }
+
+        thread::sleep(min_time_until.saturating_sub(self.last_tick.elapsed()));
     }
 
     pub fn playback_loop(&mut self) {
@@ -173,17 +185,16 @@ impl Engine {
                 match msg {
                     Play(id) => {
                         self.playback_state = Playing;
-                        println!("Playback starting: SoundID({})", id);
-                        self.event_queue_map.insert(id, VecDeque::new());
-                        self.event_queue_map.get_mut(&id).unwrap().push_back(TriggerEvent {
+                        let mut event_queue = VecDeque::new();
+                        event_queue.push_back(TriggerEvent {
                             sound_id: id,
                             created: Instant::now(),
                             time_until: Duration::from_millis(0)
                         });
+                        self.event_queue_map.insert(id, event_queue);
                         loop {
                             self.handle_event_queue();
                             if let Ok(Pause) = self.playback_control.try_recv() {
-                                println!("Playback pausing");
                                 self.clear_event_queues();
                                 self.playback_state = Paused;
                                 break;
