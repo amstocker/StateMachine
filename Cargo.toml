@@ -6,9 +6,18 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+assert_no_alloc = "1.1.2"
 binary-heap-plus = "0.5.0"
+cpal = "0.14.1"
 crossbeam-channel = "0.5.6"
+dasp = "0.11.0"
+dasp_interpolate = { version = "0.11.0", features = ["sinc"] }
+dasp_ring_buffer = "0.11.0"
+dasp_signal = "0.11.0"
 eframe = "0.19.0"
+hound = "3.5.0"
 parking_lot = "0.12.1"
 rfd = "0.10.0"
+ringbuf = "0.3.1"
 rodio = "0.16.0"
+spin_sleep = "1.1.1"
