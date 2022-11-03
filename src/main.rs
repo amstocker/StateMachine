@@ -4,21 +4,14 @@ mod sound;
 mod playback;
 mod ui;
 mod interpolator;
+mod utils;
 
-
-use std::thread;
-use std::time::Duration;
 
 use assert_no_alloc::*;
 use crossbeam_channel::unbounded;
-use hound::{self, WavIntoSamples, WavReader};
-use ringbuf::SharedRb;
-use cpal::{Device, Data, SampleFormat, SampleRate, StreamConfig};
+use hound;
+use cpal::{SampleRate, StreamConfig};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use dasp::Sample;
-use dasp_signal::{Signal, from_interleaved_samples_iter, from_iter};
-use dasp_interpolate::sinc::Sinc;
-use dasp_ring_buffer::Fixed;
 
 use interpolator::LinearInterpolator;
 
@@ -60,13 +53,6 @@ impl<I> Iterator for MonoToStereo<I> where I: Iterator, I::Item: Copy {
     }
 }
 
-fn print_supported_configs(device: &Device) {
-    println!("Supported Configs:");
-    let configs = device.supported_output_configs().unwrap();
-    for config in configs {
-        println!("\t{:?}", config);
-    }
-}
 
 fn main() {
     let host = cpal::default_host();
@@ -74,7 +60,7 @@ fn main() {
     let config: StreamConfig = device.default_output_config().unwrap().into();
     let SampleRate(sample_rate) = config.sample_rate;
 
-    let wav = hound::WavReader::open("samples/snare.wav").unwrap();
+    let wav = hound::WavReader::open("samples/kick.wav").unwrap();
     let spec = wav.spec();
 
     let mut samples = MonoToStereo::new(
