@@ -10,10 +10,10 @@ use std::thread;
 use std::time::Duration;
 
 use assert_no_alloc::*;
-use crossbeam_channel::Iter;
+use crossbeam_channel::unbounded;
 use hound::{self, WavIntoSamples, WavReader};
 use ringbuf::SharedRb;
-use cpal::{Device, Data, SampleFormat, StreamConfig};
+use cpal::{Device, Data, SampleFormat, SampleRate, StreamConfig};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use dasp::Sample;
 use dasp_signal::{Signal, from_interleaved_samples_iter, from_iter};
@@ -69,46 +69,35 @@ fn print_supported_configs(device: &Device) {
 }
 
 fn main() {
-    let v: Vec<i16> = vec![0, 150, 0, -150, 100];
-    println!("original: {:?}", v);
-    let interpolated: Vec<i16> = LinearInterpolator::new(v.into_iter(), 1.5).collect();
-    println!("interpolated: {:?}", interpolated);
-
-    let v: Vec<i16> = vec![0];
-    println!("original: {:?}", v);
-    let interpolated: Vec<i16> = LinearInterpolator::new(v.into_iter(), 1.5).collect();
-    println!("interpolated: {:?}", interpolated);
-
-    let v: Vec<i16> = vec![0, 100, 200, 0];
-    println!("original: {:?}", v);
-    let interpolated: Vec<i16> = LinearInterpolator::new(v.into_iter(), 1.5).collect();
-    println!("interpolated: {:?}", interpolated);
-    
-
     let host = cpal::default_host();
     let device = host.default_output_device().unwrap();
     let config: StreamConfig = device.default_output_config().unwrap().into();
-    let cpal::SampleRate(sample_rate) = config.sample_rate;
-    println!("target sample rate: {}", sample_rate as f64);
+    let SampleRate(sample_rate) = config.sample_rate;
 
     let wav = hound::WavReader::open("samples/snare.wav").unwrap();
     let spec = wav.spec();
-    println!("source sample rate: {}", spec.sample_rate as f64);
 
     let mut samples = MonoToStereo::new(
-        wav.into_samples::<i16>().map(|r| r.unwrap())
+        LinearInterpolator::new(
+            wav.into_samples::<i16>().map(|r| r.unwrap()),
+            (sample_rate as f64) / (spec.sample_rate as f64)
+        )
     );
+
+    let (sender, receiver) = unbounded();
 
     let stream = device.build_output_stream(
         &config,
         move |data: &mut [f32], _| {
-            assert_no_alloc(|| {
+            // assert_no_alloc(|| {
                 for out_sample in data.iter_mut() {
                     if let Some(sample) = samples.next() {
                         *out_sample = cpal::Sample::from(&sample);
+                    } else {
+                        sender.send(()).unwrap();
                     }
                 }
-            });
+            // });
         },
         move |err| {
             println!{"{}", err};
@@ -116,7 +105,7 @@ fn main() {
     ).unwrap();
     stream.play().unwrap();
 
-    thread::sleep(Duration::from_millis(1000));
+    receiver.recv().unwrap();
 }
 
 
