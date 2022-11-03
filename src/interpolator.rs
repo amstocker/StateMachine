@@ -16,17 +16,16 @@ where
     I: Iterator,
     I::Item: Sample + ToSample<Float> + FromSample<Float>
 {
-    pub fn new(iterator: I, ratio: Float) -> Self {
-        let mut interpolator = LinearInterpolator {
+    pub fn new(mut iterator: I, ratio: Float) -> Self {
+        let prev = iterator.next();
+        let next = iterator.next();
+        Self {
             iterator,
-            prev: None,
-            next: None,
+            prev,
+            next,
             ratio,
             step: 0.0
-        };
-        interpolator.prev = interpolator.iterator.next();
-        interpolator.next = interpolator.iterator.next();
-        interpolator
+        }
     }
 
     fn interpolate(&self, t: Float) -> Option<I::Item> {
