@@ -3,6 +3,7 @@ mod app;
 mod sound;
 mod playback;
 mod ui;
+mod interpolator;
 
 
 use std::thread;
@@ -19,12 +20,14 @@ use dasp_signal::{Signal, from_interleaved_samples_iter, from_iter};
 use dasp_interpolate::sinc::Sinc;
 use dasp_ring_buffer::Fixed;
 
+use interpolator::LinearInterpolator;
+
+
+// assert_no_alloc
 #[cfg(debug_assertions)]
 #[global_allocator]
 static A: AllocDisabler = AllocDisabler;
 
-
-type BitDepth = i16;
 
 struct MonoToStereo<I> where I: Iterator {
     iterator: I,
@@ -66,6 +69,22 @@ fn print_supported_configs(device: &Device) {
 }
 
 fn main() {
+    let v: Vec<i16> = vec![0, 150, 0, -150, 100];
+    println!("original: {:?}", v);
+    let interpolated: Vec<i16> = LinearInterpolator::new(v.into_iter(), 1.5).collect();
+    println!("interpolated: {:?}", interpolated);
+
+    let v: Vec<i16> = vec![0];
+    println!("original: {:?}", v);
+    let interpolated: Vec<i16> = LinearInterpolator::new(v.into_iter(), 1.5).collect();
+    println!("interpolated: {:?}", interpolated);
+
+    let v: Vec<i16> = vec![0, 100, 200, 0];
+    println!("original: {:?}", v);
+    let interpolated: Vec<i16> = LinearInterpolator::new(v.into_iter(), 1.5).collect();
+    println!("interpolated: {:?}", interpolated);
+    
+
     let host = cpal::default_host();
     let device = host.default_output_device().unwrap();
     let config: StreamConfig = device.default_output_config().unwrap().into();
