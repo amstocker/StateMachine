@@ -1,17 +1,18 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
-
-use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 
 use assert_no_alloc::*;
-use crossbeam_channel::unbounded;
 use dasp::Sample;
 use hound;
 use cpal::{SampleRate, StreamConfig};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 
 mod utils;
+mod sound;
 mod interpolator;
 mod output;
+use sound::*;
 use interpolator::LinearInterpolator;
 use output::{MonoToStereo, StereoOutput};
 
@@ -25,7 +26,10 @@ static A: AllocDisabler = AllocDisabler;
 fn main() {
     let host = cpal::default_host();
     let device = host.default_output_device().unwrap();
-    let config: StreamConfig = device.default_output_config().unwrap().into();
+
+    let supported_config = device.default_output_config().unwrap();
+    let config: StreamConfig = supported_config.into();
+
     let num_channels = config.channels;
     let SampleRate(sample_rate) = config.sample_rate;
 
@@ -34,7 +38,7 @@ fn main() {
 
     let samples = LinearInterpolator::new(
         wav.into_samples::<i16>().map(|r| r.unwrap()),
-        (sample_rate as f64) / (spec.sample_rate as f64)
+        (sample_rate as Float) / (spec.sample_rate as Float)
     );
 
     let mut output = StereoOutput::new(
@@ -43,20 +47,16 @@ fn main() {
         (1, 2)
     );
 
-    let (sender, receiver) = unbounded();
-
     let stream = device.build_output_stream(
         &config,
         move |data: &mut [f32], _| {
-            // assert_no_alloc(|| {
+            assert_no_alloc(|| {
                 for out_sample in data.iter_mut() {
                     if let Some(sample) = output.next() {
                         *out_sample = sample.to_sample::<f32>();
-                    } else {
-                        sender.send(()).unwrap();
                     }
                 }
-            // });
+            });
         },
         move |err| {
             println!{"{}", err};
@@ -64,7 +64,7 @@ fn main() {
     ).unwrap();
     stream.play().unwrap();
 
-    receiver.recv().unwrap();
+    thread::sleep(Duration::from_millis(500));
 }
 
 

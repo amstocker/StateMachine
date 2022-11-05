@@ -64,7 +64,9 @@ impl<I> Iterator for StereoOutput<I> where I: Iterator, I::Item: Sample {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.current_channel = (self.current_channel + 1) % self.num_channels;
-        if (self.current_channel == self.output_channels.0) || (self.current_channel == self.output_channels.1) {
+        if (self.current_channel == self.output_channels.0) || 
+           (self.current_channel == self.output_channels.1)
+        {
             self.next_channel = match self.next_channel {
                 StereoChannel::Left => StereoChannel::Right,
                 StereoChannel::Right => StereoChannel::Left

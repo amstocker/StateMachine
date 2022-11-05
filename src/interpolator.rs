@@ -1,7 +1,7 @@
 use dasp::{Sample, sample::{FromSample, ToSample}};
 
+use crate::sound::Float;
 
-type Float = f64;
 
 pub struct LinearInterpolator<I> where I: Iterator {
     iterator: I,
@@ -28,14 +28,14 @@ where
         }
     }
 
-    fn interpolate(&self, t: Float) -> Option<I::Item> {
+    fn interpolate(&self, t: Float) -> Option<Float> {
         if let Some(a) = self.prev {
             let a = a.to_sample::<Float>();
             if let Some(b) = self.next {
                 let b = b.to_sample::<Float>();
-                return Some(Sample::from_sample((1.0 - t) * a + t * b));
+                return Some((1.0 - t) * a + t * b);
             } else {
-                return Some(Sample::from_sample((1.0 - t) * a));
+                return Some((1.0 - t) * a);
             }
         }
         None
@@ -47,7 +47,7 @@ where
     I: Iterator,
     I::Item: Sample + ToSample<Float> + FromSample<Float>
 {
-    type Item = I::Item;
+    type Item = Float;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.step >= self.ratio {
