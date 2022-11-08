@@ -12,9 +12,9 @@ mod utils;
 mod sound;
 mod interpolator;
 mod output;
-use sound::*;
-use interpolator::LinearInterpolator;
-use output::{MonoToStereo, StereoOutput};
+use crate::sound::*;
+use crate::interpolator::*;
+use crate::output::{MonoToStereo, StereoOutput};
 
 
 // assert_no_alloc
@@ -38,13 +38,13 @@ fn main() {
 
     let samples = LinearInterpolator::new(
         wav.into_samples::<i16>().map(|r| r.unwrap()),
-        (sample_rate as Float) / (spec.sample_rate as Float)
+        (sample_rate as InterpolatorFloat) / (spec.sample_rate as InterpolatorFloat)
     );
 
     let mut output = StereoOutput::new(
         MonoToStereo::new(samples),
         num_channels,
-        (1, 2)
+        (1, 2) // Weirdly needs to be (1, 2) on MOTU interface?
     );
 
     let stream = device.build_output_stream(
