@@ -3,7 +3,6 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
 use dasp::Sample;
-use dasp::frame::Stereo;
 use hound::SampleFormat;
 use hound::WavReader;
 

@@ -1,8 +1,4 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
-use std::thread;
-use std::time::Duration;
-use std::sync::atomic::Ordering::SeqCst;
-
 use assert_no_alloc::*;
 use cpal::{SampleRate, StreamConfig};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
