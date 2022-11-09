@@ -1,20 +1,25 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 use std::thread;
 use std::time::Duration;
+use std::sync::atomic::Ordering::SeqCst;
 
 use assert_no_alloc::*;
 use dasp::Sample;
 use hound;
 use cpal::{SampleRate, StreamConfig};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use output::OutputFormat;
+use ringbuf::LocalRb;
+use sequencer::Sequencer;
 
 mod utils;
 mod sound;
 mod interpolator;
+mod sequencer;
 mod output;
 use crate::sound::*;
 use crate::interpolator::*;
-use crate::output::{MonoToStereo, StereoOutput};
+use crate::output::{MonoToStereoFrame, stereo_to_output_frame};
 
 
 // assert_no_alloc
@@ -28,33 +33,29 @@ fn main() {
     let device = host.default_output_device().unwrap();
 
     let supported_config = device.default_output_config().unwrap();
+    let sample_format = supported_config.sample_format();
     let config: StreamConfig = supported_config.into();
 
-    let num_channels = config.channels;
+    let num_channels = config.channels as usize;
     let SampleRate(sample_rate) = config.sample_rate;
+    let format = OutputFormat {
+        channels: num_channels,
+        sample_rate: sample_rate as f32,
+        sample_format
+    };
 
-    let wav = hound::WavReader::open("samples/hihat.wav").unwrap();
-    let spec = wav.spec();
+    let sound: Sound<f32> = Sound::from_wav_file("samples/hihat.wav", &format);
+    let mut sound_bank = SoundBank::new();
+    sound_bank.add_sound_at_index(0, sound);
 
-    let samples = LinearInterpolator::new(
-        wav.into_samples::<i16>().map(|r| r.unwrap()),
-        (sample_rate as InterpolatorFloat) / (spec.sample_rate as InterpolatorFloat)
-    );
-
-    let mut output = StereoOutput::new(
-        MonoToStereo::new(samples),
-        num_channels,
-        (1, 2) // Weirdly needs to be (1, 2) on MOTU interface?
-    );
+    let (controller, mut sequencer) = Sequencer::new_with_sound_bank(sound_bank);
 
     let stream = device.build_output_stream(
         &config,
         move |data: &mut [f32], _| {
             assert_no_alloc(|| {
-                for out_sample in data.iter_mut() {
-                    if let Some(sample) = output.next() {
-                        *out_sample = sample.to_sample::<f32>();
-                    }
+                for out_frame in data.chunks_mut(format.channels) {
+                    stereo_to_output_frame(out_frame, sequencer.next_frame(), num_channels, (0, 1));
                 }
             });
         },
@@ -64,7 +65,12 @@ fn main() {
     ).unwrap();
     stream.play().unwrap();
 
-    thread::sleep(Duration::from_millis(500));
+    if let Some(node) = controller.nodes.get(0) {
+        node.enabled.store(true, SeqCst);
+        node.is_playing.store(true, SeqCst);
+    }
+
+    thread::sleep(Duration::from_millis(1000));
 }
 
 

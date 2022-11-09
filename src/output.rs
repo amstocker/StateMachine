@@ -1,3 +1,4 @@
+use core::num;
 use std::rc::Rc;
 
 use dasp::{Sample, sample::{FromSample, ToSample}};
@@ -7,7 +8,7 @@ use crate::interpolator::InterpolatorFloat;
 
 
 pub struct OutputFormat {
-    pub channels: u16,
+    pub channels: usize,
     pub sample_rate: f32,
     pub sample_format: cpal::SampleFormat
 }
@@ -30,135 +31,76 @@ impl<S> OutputSample for S where S:
     + std::ops::AddAssign
     {}
 
+pub type Frames = usize;
 
-pub type Samples = usize;
+#[derive(Clone, Copy)]
+pub struct StereoFrame<S>(S, S) where S: OutputSample;
+
+impl<S> StereoFrame<S> where S: OutputSample {
+    #[inline]
+    pub fn zero() -> StereoFrame<S> {
+        StereoFrame(S::EQUILIBRIUM, S::EQUILIBRIUM)
+    }
+
+    #[inline]
+    pub fn left(&self) -> S {
+        self.0
+    }
+
+    #[inline]
+    pub fn right(&self) -> S {
+        self.1
+    }
+}
+
+impl<S> std::ops::AddAssign for StereoFrame<S> where S: OutputSample {
+    fn add_assign(&mut self, rhs: Self) {
+        self.0 += rhs.0;
+        self.1 += rhs.1;
+    }
+}
 
 pub enum StereoChannel {
     Left,
     Right
 }
 
-pub struct MonoToStereo<I> where I: Iterator {
+pub struct MonoToStereoFrame<I> where I: Iterator {
     iterator: I,
-    buffer: Option<I::Item>,
-    first: bool
 }
 
-impl<I> MonoToStereo<I> where I: Iterator {
+impl<I> MonoToStereoFrame<I> where I: Iterator {
     pub fn new(iterator: I) -> Self {
         Self {
             iterator,
-            buffer: None,
-            first: true
         }
     }
 }
 
-impl<I> Iterator for MonoToStereo<I> where I: Iterator, I::Item: Copy {
-    type Item = I::Item;
+impl<I> Iterator for MonoToStereoFrame<I> where I: Iterator, I::Item: OutputSample {
+    type Item = StereoFrame<I::Item>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.first {
-            self.buffer = self.iterator.next();
-            self.first = false;
-            self.buffer
+        if let Some(sample) = self.iterator.next() {
+            return Some(StereoFrame(sample, sample));
+        }
+        None
+    }
+}
+
+pub fn stereo_to_output_frame<S: OutputSample>(
+    output_frame: &mut [S],
+    input_frame: StereoFrame<S>,
+    num_channels: usize,
+    output_channels: (usize, usize)
+) {
+    for (i, out_sample) in output_frame.iter_mut().enumerate() {
+        if (i == output_channels.0 % num_channels) {
+            *out_sample = input_frame.left();
+        } else if (i == output_channels.1 % num_channels) {
+            *out_sample = input_frame.right();
         } else {
-            self.first = true;
-            self.buffer
+            *out_sample = S::EQUILIBRIUM;
         }
-    }
-}
-
-
-pub struct StereoOutput<I> {
-    iterator: I,
-    num_channels: u16,
-    output_channels: (u16, u16),
-    current_channel: u16,
-    next_channel: StereoChannel
-}
-
-impl<I> StereoOutput<I> where I: Iterator {
-    pub fn new(iterator: I, num_channels: u16, output_channels: (u16, u16)) -> Self {
-        assert!(output_channels.0 != output_channels.1);
-        Self {
-            iterator,
-            num_channels,
-            output_channels: (output_channels.0 % num_channels, output_channels.1 % num_channels),
-            current_channel: 0,
-            next_channel: StereoChannel::Left
-        }
-    }
-}
-
-impl<I> Iterator for StereoOutput<I> where I: Iterator, I::Item: Sample {
-    type Item = I::Item;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.current_channel = (self.current_channel + 1) % self.num_channels;
-        if (self.current_channel == self.output_channels.0) || 
-           (self.current_channel == self.output_channels.1)
-        {
-            self.next_channel = match self.next_channel {
-                StereoChannel::Left => StereoChannel::Right,
-                StereoChannel::Right => StereoChannel::Left
-            };
-            self.iterator.next()
-        } else {
-            Some(Self::Item::EQUILIBRIUM)
-        }
-    }
-}
-
-
-struct SoundNode<S> where S: OutputSample {
-    index: SoundID,
-    sound: Rc<Sound<S>>, // actually don't need this as long as we reference SoundBank
-    samples_until_trigger: Samples,
-    is_playing: bool,
-    current_sample_index: Samples,
-    current_sample: S
-}
-
-impl<S> SoundNode<S> where S: OutputSample {
-
-    #[inline]
-    pub fn current_sample(&self) -> Option<S> {
-        self.sound.data.get(self.current_sample_index as usize).copied()
-    }
-
-    pub fn increment(&mut self) {
-        self.samples_until_trigger -= 1;
-        self.current_sample_index += 1;
-        if self.current_sample_index >= self.sound.data.len() {
-            self.is_playing = false;
-        }
-    }
-}
-
-struct AudioOutput<S> where S: OutputSample {
-    samples_count: Samples,
-    sounds: [Option<SoundNode<S>>; 16],
-}
-
-impl<S> Iterator for AudioOutput<S> where S: OutputSample {
-    type Item = S;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let mut out_sample = S::EQUILIBRIUM;
-
-        for i in 0..16 {
-            if let Some(node) = &self.sounds[i] {
-                if node.is_playing {
-                    out_sample += node.current_sample().unwrap();
-                }
-            }
-        }
-
-        Some(out_sample)
-    }
-}
-
-struct AudioOutputController {
-
+    } 
 }
