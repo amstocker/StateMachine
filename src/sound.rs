@@ -3,8 +3,10 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
 use dasp::Sample;
+use dasp::sample::types::i11::MAX;
 use hound::SampleFormat;
 use hound::WavReader;
+use rtrb::{RingBuffer, Consumer, Producer};
 
 use crate::interpolator::InterpolatorFloat;
 use crate::interpolator::LinearInterpolator;
@@ -15,46 +17,106 @@ use crate::output::Frames;
 use crate::output::StereoFrame;
 
 
-const MAX_SOUNDS: usize = 32;
+pub const MAX_SOUNDS: usize = 32;
 
-pub type SoundID = usize;
+enum SoundBankControl<S> where S: OutputSample {
+    Set {
+        index: usize,
+        sound: Option<Sound<S>>
+    }
+}
 
-pub struct SoundBank<S>([Option<Sound<S>>; MAX_SOUNDS]) where S: OutputSample;
+pub struct SoundBankMeta<S> where S: OutputSample {
+    pub meta_data: [Option<SoundMeta>; MAX_SOUNDS],
+    producer: Producer<SoundBankControl<S>>
+}
+
+impl<S> SoundBankMeta<S> where S: OutputSample {
+    pub fn add_sound(&mut self, sound: Sound<S>) -> Option<SoundMeta> {
+        for (i, slot) in &mut self.meta_data.iter_mut().enumerate() {
+            if slot.is_none() {
+                let meta = SoundMeta {
+                    name: sound.name.clone(),
+                    length: sound.data.len(),
+                    index: i
+                };
+                *slot = Some(meta.clone());
+                self.producer.push(SoundBankControl::Set {
+                    index: i,
+                    sound: Some(sound)
+                }).unwrap();
+                return Some(meta);
+            }
+        }
+        None
+    }
+
+    pub fn get_sound_meta(&self, index: usize) -> Option<&SoundMeta> {
+        let slot = self.meta_data.get(index)?;
+        if let Some(sound_meta) = slot {
+            Some(&sound_meta)
+        } else {
+            None
+        }
+    }
+}
+
+pub struct SoundBank<S> where S: OutputSample {
+    sounds: [Option<Sound<S>>; MAX_SOUNDS],
+    consumer: Consumer<SoundBankControl<S>>
+}
 
 impl<S> SoundBank<S> where S: OutputSample {
-    pub fn new() -> SoundBank<S> {
-        SoundBank(Default::default())
+    pub fn new() -> (SoundBankMeta<S>, SoundBank<S>) {
+        let (producer, consumer) = RingBuffer::new(MAX_SOUNDS);
+
+        let sound_bank_meta = SoundBankMeta {
+            meta_data: Default::default(),
+            producer
+        };
+        let sound_bank = SoundBank {
+            sounds: Default::default(),
+            consumer
+        };
+        (sound_bank_meta, sound_bank)
     }
 
-    pub fn add_sound_at_index(&mut self, index: SoundID, sound: Sound<S>) {
-        self.0[index] = Some(sound);
+    pub fn update(&mut self) {
+        if let Ok(item) = self.consumer.pop() {
+            use SoundBankControl::*;
+            match item {
+                Set { index, sound } => {
+                    self.sounds[index] = sound;
+                }
+            }
+        }
     }
 
-    pub fn get_frame(&self, id: SoundID, index: Frames) -> Option<StereoFrame<S>> {
-        if let Some(sound) = &self.0[id] {
-            return sound.data.get(index).copied();
+    pub fn get_frame(&self, index: usize, frame_index: Frames) -> Option<StereoFrame<S>> {
+        if let Some(sound) = &self.sounds[index] {
+            return sound.data.get(frame_index).copied();
         }
         None
     }
 }
 
 
-fn generate_id() -> SoundID {
-    static COUNTER: AtomicUsize = AtomicUsize::new(0);
-    COUNTER.fetch_add(1, Ordering::SeqCst)
-}
-
-
 pub struct Sound<S> where S: OutputSample {
-    pub id: SoundID,
     pub name: String,
     pub data: Vec<StereoFrame<S>>
+}
+
+#[derive(Clone)]
+pub struct SoundMeta {
+    pub name: String,
+    pub length: usize,
+    pub index: usize
+    // TODO: downsampled waveform
 }
 
 impl<S> Sound<S> where S: OutputSample {
     pub fn new(name: String, data: Vec<StereoFrame<S>>) -> Self {
         Sound {
-            id: generate_id(),
             name,
             data
         }
@@ -69,7 +131,7 @@ impl<S> Sound<S> where S: OutputSample {
         let sample_rate = wav.spec().sample_rate;
 
         // need to handle stereo wav files
-        let data = match wav.spec().sample_format {
+        let data: Vec<StereoFrame<S>> = match wav.spec().sample_format {
             SampleFormat::Float => {
                 let data = wav.into_samples::<f32>()
                    .map(|r| r.unwrap())
@@ -89,6 +151,7 @@ impl<S> Sound<S> where S: OutputSample {
                 )).collect()
             }
         };
+        
         Sound::new(name, data)
     }
 

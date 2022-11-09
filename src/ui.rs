@@ -2,16 +2,18 @@ use std::sync::atomic::Ordering::SeqCst;
 
 use eframe::egui;
 
-use crate::sequencer::{SequencerController, GRID_SIZE};
+use crate::{sequencer::{SequencerParameters, GRID_SIZE, GRID_SIZE_ROOT}, sound::{SoundBankMeta, MAX_SOUNDS}, output::OutputSample};
 
 
-pub struct UI {
-    controller: SequencerController
+pub struct UI<S> where S: OutputSample {
+    sound_bank: SoundBankMeta<S>,
+    controller: SequencerParameters
 }
 
-impl UI {
-    pub fn new(controller: SequencerController) -> Self {
+impl<S> UI<S> where S: OutputSample + 'static {
+    pub fn new(sound_bank: SoundBankMeta<S>, controller: SequencerParameters) -> Self {
         Self {
+            sound_bank,
             controller
         }
     }
@@ -33,7 +35,7 @@ impl UI {
     }
 }
 
-impl eframe::App for UI {
+impl<S> eframe::App for UI<S> where S: OutputSample {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             use eframe::egui::*;
@@ -55,28 +57,45 @@ impl eframe::App for UI {
             }
 
             ui.heading("Grid");
-            for i in 0..GRID_SIZE {
-                let node = self.controller.nodes.get(i).unwrap();
-                ui.group(|ui| {
-                    ui.label(format!("Sound: {}", node.sound_index.load(SeqCst)));
-                    ui.label(format!("Frame index: {}", node.current_frame_index.load(SeqCst)));
-                    ui.horizontal(|ui| {
-                        if node.enabled.load(SeqCst) {
-                            if ui.button("Disable").clicked() {
-                                node.enabled.store(false, SeqCst);
-                            }
-                        } else {
-                            if ui.button("Enable").clicked() {
-                                node.enabled.store(true, SeqCst);
-                            }
-                        }
-                        if ui.button("Play").clicked() {
-                            node.current_frame_index.store(0, SeqCst);
-                            node.is_playing.store(true, SeqCst);
-                        }
-                    });
+            for j in 0..GRID_SIZE_ROOT {
+                ui.horizontal(|ui| {
+                    for i in 0..GRID_SIZE_ROOT {
+                        let index = j * GRID_SIZE_ROOT + i;
+                        let node = self.controller.nodes.get(index).unwrap();
+                        let sound_index = node.sound_index.load(SeqCst);
+                        let sound_meta = self.sound_bank.get_sound_meta(sound_index).unwrap();
+                        let progress = node.current_frame_index.load(SeqCst) as f32 / sound_meta.length as f32;
+                        ui.group(|ui| {
+                            ui.vertical(|ui| {
+                                ui.label(format!("Sound: {}", sound_meta.name));
+                                ui.horizontal(|ui| {
+                                    if ui.button("Prev").clicked() && sound_index > 0 {
+                                        node.sound_index.fetch_sub(1, SeqCst);
+                                    }
+                                    if ui.button("Next").clicked() && sound_index < MAX_SOUNDS {
+                                        node.sound_index.fetch_add(1, SeqCst);
+                                    }
+                                });
+                                //ui.label(format!("Progress: {:.2}", progress));
+                                ui.horizontal(|ui| {
+                                    if node.enabled.load(SeqCst) {
+                                        if ui.button("Disable").clicked() {
+                                            node.enabled.store(false, SeqCst);
+                                        }
+                                    } else {
+                                        if ui.button("Enable").clicked() {
+                                            node.enabled.store(true, SeqCst);
+                                        }
+                                    }
+                                    if ui.button("Play").clicked() {
+                                        node.current_frame_index.store(0, SeqCst);
+                                        node.is_playing.store(true, SeqCst);
+                                    }
+                                });
+                            });
+                        });
+                    }
                 });
-                
             }
 
             // for (id, sound) in self.app_state.sounds.read().iter() {

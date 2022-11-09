@@ -38,11 +38,14 @@ fn main() {
         sample_format
     };
 
-    let sound: Sound<f32> = Sound::from_wav_file("samples/kick.wav", &format);
-    let mut sound_bank = SoundBank::new();
-    sound_bank.add_sound_at_index(0, sound);
+    let (mut sound_bank_meta, sound_bank) = SoundBank::new();
+    
+    // Pre-load with some drum sounds...
+    sound_bank_meta.add_sound(Sound::from_wav_file("samples/kick.wav", &format)).unwrap();
+    sound_bank_meta.add_sound(Sound::from_wav_file("samples/snare.wav", &format)).unwrap();
+    sound_bank_meta.add_sound(Sound::from_wav_file("samples/hihat.wav", &format)).unwrap();
 
-    let (controller, mut sequencer) = Sequencer::new_with_sound_bank(sound_bank);
+    let (controller, mut sequencer) = Sequencer::new(sound_bank);
 
     let stream = device.build_output_stream(
         &config,
@@ -59,7 +62,7 @@ fn main() {
     ).unwrap();
     stream.play().unwrap();
 
-    let ui = UI::new(controller);
+    let ui = UI::new(sound_bank_meta, controller);
     ui.run();
 }
 

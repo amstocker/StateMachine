@@ -7,7 +7,8 @@ use crate::output::{OutputSample, StereoFrame};
 
 
 // Sound nodes are on a four-by-four grid
-pub const GRID_SIZE: usize = 16;
+pub const GRID_SIZE_ROOT: usize = 4;
+pub const GRID_SIZE: usize = GRID_SIZE_ROOT * GRID_SIZE_ROOT;
 
 pub const INPUT_TRIGGERS_PER_NODE: usize = 4;
 pub const OUTPUT_TRIGGERS_PER_NODE: usize = 4;
@@ -129,7 +130,7 @@ impl TriggerOutput {
 }
 
 
-pub struct SequencerController {
+pub struct SequencerParameters {
     pub nodes: Arc<Grid>,
     pub input_triggers: Arc<InputTriggers>,
     pub output_triggers: Arc<OutputTriggers>,
@@ -145,11 +146,7 @@ pub struct Sequencer<S> where S: OutputSample {
 }
 
 impl<S> Sequencer<S> where S: OutputSample {
-    pub fn new() -> (SequencerController, Sequencer<S>) {
-        Sequencer::new_with_sound_bank(SoundBank::new())
-    }
-
-    pub fn new_with_sound_bank(sound_bank: SoundBank<S>) -> (SequencerController, Sequencer<S>) {
+    pub fn new(sound_bank: SoundBank<S>) -> (SequencerParameters, Sequencer<S>) {
         let nodes: Arc<Grid> = Arc::new(
             (0..GRID_SIZE).map(|_| Node::new())
                 .collect::<Vec<Node>>().try_into().unwrap()
@@ -163,7 +160,7 @@ impl<S> Sequencer<S> where S: OutputSample {
                 .collect::<Vec<TriggerOutput>>().try_into().unwrap()
         ));
 
-        let controller = SequencerController {
+        let controller = SequencerParameters {
             nodes: nodes.clone(),
             input_triggers: input_triggers.clone(),
             output_triggers: output_triggers.clone()
@@ -249,6 +246,7 @@ impl<S> Sequencer<S> where S: OutputSample {
     }
 
     pub fn next_frame(&mut self) -> StereoFrame<S> {
+        self.sound_bank.update();
         self.update_single_frame();
         self.output_single_frame()
     }
