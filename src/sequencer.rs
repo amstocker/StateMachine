@@ -252,19 +252,12 @@ impl<S> Sequencer<S> where S: OutputSample {
         self.update_single_frame();
         self.output_single_frame()
     }
-
-    fn split_borrow(&mut self) -> (&Arc<Grid>, &Arc<InputTriggers>, &Arc<OutputTriggers>) {
-        (&mut self.nodes, &mut self.input_triggers, &mut self.output_triggers)
-    }
-
-
 }
 
 impl<S> Iterator for Sequencer<S> where S: OutputSample {
     type Item = StereoFrame<S>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.update_single_frame();
-        Some(self.output_single_frame())
+        Some(self.next_frame())
     }
 }
