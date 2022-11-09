@@ -1,22 +1,18 @@
-use std::sync::Arc;
+use std::sync::atomic::Ordering::SeqCst;
 
-use crossbeam_channel::Sender;
 use eframe::egui;
 
-use crate::app::*;
-use crate::playback::PlaybackControlMessage;
+use crate::sequencer::{SequencerController, GRID_SIZE};
 
 
 pub struct UI {
-    app_state: Arc<State>,
-    playback_control: Sender<PlaybackControlMessage>
+    controller: SequencerController
 }
 
 impl UI {
-    pub fn new(app_state: Arc<State>, playback_control: Sender<PlaybackControlMessage>) -> Self {
+    pub fn new(controller: SequencerController) -> Self {
         Self {
-            app_state,
-            playback_control
+            controller
         }
     }
 
@@ -39,8 +35,6 @@ impl UI {
 
 impl eframe::App for UI {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        use PlaybackControlMessage::*;
-
         egui::CentralPanel::default().show(ctx, |ui| {
             use eframe::egui::*;
 
@@ -55,42 +49,66 @@ impl eframe::App for UI {
                 rect
             };
             let title_bar_response =
-                ui.interact(title_bar_rect, Id::new("title_bar"), Sense::click());
+                ui.interact(title_bar_rect, Id::new("state_machine"), Sense::click());
             if title_bar_response.is_pointer_button_down_on() {
                 frame.drag_window();
             }
 
-            ui.heading("Samples");
-            for (id, sound) in self.app_state.sounds.read().iter() {
+            ui.heading("Grid");
+            for i in 0..GRID_SIZE {
+                let node = self.controller.nodes.get(i).unwrap();
                 ui.group(|ui| {
+                    ui.label(format!("Sound: {}", node.sound_index.load(SeqCst)));
+                    ui.label(format!("Frame index: {}", node.current_frame_index.load(SeqCst)));
                     ui.horizontal(|ui| {
-                        ui.label(format!("({})", id));
-                        ui.monospace(&sound.name);
-                    });
-                    ui.separator();
-                    ui.horizontal(|ui| {
-                        if ui.button("Trigger").clicked() {
-                            self.playback_control.send(Play(*id)).unwrap();
-                            self.playback_control.send(Pause).unwrap();
+                        if node.enabled.load(SeqCst) {
+                            if ui.button("Disable").clicked() {
+                                node.enabled.store(false, SeqCst);
+                            }
+                        } else {
+                            if ui.button("Enable").clicked() {
+                                node.enabled.store(true, SeqCst);
+                            }
                         }
                         if ui.button("Play").clicked() {
-                            self.playback_control.send(Play(*id)).unwrap();
-                        }
-                        if ui.button("Pause").clicked() {
-                            self.playback_control.send(Pause).unwrap();
+                            node.current_frame_index.store(0, SeqCst);
+                            node.is_playing.store(true, SeqCst);
                         }
                     });
                 });
+                
             }
 
-            ui.group(|ui| {
-                if ui.button("Add Sample").clicked() {
-                    if let Some(filename) = rfd::FileDialog::new().pick_file() {
-                        App::add_sound_to_state(self.app_state.clone(), filename.display().to_string());
-                    }
-                }
-            });
+            // for (id, sound) in self.app_state.sounds.read().iter() {
+            //     ui.group(|ui| {
+            //         ui.horizontal(|ui| {
+            //             ui.label(format!("({})", id));
+            //             ui.monospace(&sound.name);
+            //         });
+            //         ui.separator();
+            //         ui.horizontal(|ui| {
+            //             if ui.button("Trigger").clicked() {
+            //             }
+            //             if ui.button("Play").clicked() {
+            //             }
+            //             if ui.button("Pause").clicked() {
+            //             }
+            //         });
+            //     });
+            // }
+
+            // ui.group(|ui| {
+            //     if ui.button("Add Sample").clicked() {
+            //         if let Some(filename) = rfd::FileDialog::new().pick_file() {
+            //             App::add_sound_to_state(self.app_state.clone(), filename.display().to_string());
+            //         }
+            //     }
+            // });
             
         });
+
+        // necessary because egui cannot tell if atomic variables have been updated
+        // TODO: better way?
+        ctx.request_repaint();
     }
 }

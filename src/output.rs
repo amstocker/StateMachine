@@ -95,9 +95,9 @@ pub fn stereo_to_output_frame<S: OutputSample>(
     output_channels: (usize, usize)
 ) {
     for (i, out_sample) in output_frame.iter_mut().enumerate() {
-        if (i == output_channels.0 % num_channels) {
+        if i == output_channels.0 % num_channels {
             *out_sample = input_frame.left();
-        } else if (i == output_channels.1 % num_channels) {
+        } else if i == output_channels.1 % num_channels {
             *out_sample = input_frame.right();
         } else {
             *out_sample = S::EQUILIBRIUM;

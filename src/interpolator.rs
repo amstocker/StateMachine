@@ -1,4 +1,4 @@
-use dasp::{Sample, sample::{FromSample, ToSample}};
+use dasp::Sample;
 
 use crate::output::OutputSample;
 

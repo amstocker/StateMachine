@@ -1,11 +1,10 @@
-use std::collections::VecDeque;
 use std::mem::{MaybeUninit, self};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, AtomicBool};
 use std::sync::atomic::Ordering::SeqCst;
 
-use crate::sound::{SoundID, SoundBank};
-use crate::output::{Frames, OutputSample, StereoFrame};
+use crate::sound::{SoundBank};
+use crate::output::{OutputSample, StereoFrame};
 
 
 // Sound nodes are on a four-by-four grid
@@ -28,28 +27,23 @@ fn to_output_trigger_index(node_index: usize, output_number: usize) -> usize {
     (node_index * OUTPUT_TRIGGERS_PER_NODE) + output_number
 }
 
-
-// UI thread: read & write
-// Realtime thread: read only
-pub struct TriggerOutput {
-    pub target_index: AtomicUsize,
-    pub target_input_number: AtomicUsize,
-    pub frame_delay: AtomicUsize,
-    pub enabled: AtomicBool
-}
-
-// UI thread: read only
-// Realtime thread: read & write
-pub struct TriggerInput {
-    pub frames_until: AtomicUsize,
-    pub pending: AtomicBool,
-}
-
+#[derive(Debug)]
 pub struct Node {
-    pub sound_id: AtomicUsize,
+    pub sound_index: AtomicUsize,
     pub is_playing: AtomicBool,
     pub current_frame_index: AtomicUsize,
     pub enabled: AtomicBool
+}
+
+impl Node {
+    pub fn new() -> Self {
+        Self {
+            sound_index: AtomicUsize::new(0),
+            is_playing: AtomicBool::new(false),
+            current_frame_index: AtomicUsize::new(0),
+            enabled: AtomicBool::new(false)
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -57,6 +51,45 @@ struct NodeInternal {
     triggered_this_frame: bool,
     triggered_last_frame: bool
 }
+
+// UI thread: read only
+// Realtime thread: read & write
+#[derive(Debug)]
+pub struct TriggerInput {
+    pub frames_until: AtomicUsize,
+    pub pending: AtomicBool,
+}
+
+impl TriggerInput {
+    pub fn new() -> Self {
+        Self {
+            frames_until: AtomicUsize::new(0),
+            pending: AtomicBool::new(false),
+        }
+    }
+}
+
+// UI thread: read & write
+// Realtime thread: read only
+#[derive(Debug)]
+pub struct TriggerOutput {
+    pub target_index: AtomicUsize,
+    pub target_input_number: AtomicUsize,
+    pub frame_delay: AtomicUsize,
+    pub enabled: AtomicBool
+}
+
+impl TriggerOutput {
+    pub fn new() -> Self {
+        Self {
+            target_index: AtomicUsize::new(0),
+            target_input_number: AtomicUsize::new(0),
+            frame_delay: AtomicUsize::new(0),
+            enabled: AtomicBool::new(false)
+        }
+    }
+}
+
 
 pub struct SequencerController {
     pub nodes: Arc<Grid>,
@@ -79,52 +112,18 @@ impl<S> Sequencer<S> where S: OutputSample {
     }
 
     pub fn new_with_sound_bank(sound_bank: SoundBank<S>) -> (SequencerController, Sequencer<S>) {
-        let nodes = Arc::new({
-            let mut nodes_uninit: [MaybeUninit<Node>; GRID_SIZE] = unsafe {
-                MaybeUninit::uninit().assume_init()
-            };
-            for elem in &mut nodes_uninit[..] {
-                elem.write(Node {
-                    sound_id: AtomicUsize::new(0),
-                    is_playing: AtomicBool::new(false),
-                    current_frame_index: AtomicUsize::new(0),
-                    enabled: AtomicBool::new(false)
-                });
-            }
-            unsafe {
-                mem::transmute::<_, Grid>(nodes_uninit)
-            }
-        });
-        let input_triggers = Arc::new({
-            let mut triggers_uninit: [MaybeUninit<TriggerInput>; INPUT_TRIGGERS_PER_NODE * GRID_SIZE] = unsafe {
-                MaybeUninit::uninit().assume_init()
-            };
-            for elem in &mut triggers_uninit[..] {
-                elem.write(TriggerInput {
-                    frames_until: AtomicUsize::new(0),
-                    pending: AtomicBool::new(false),
-                });
-            }
-            unsafe {
-                mem::transmute::<_, InputTriggers>(triggers_uninit)
-            }
-        });
-        let output_triggers = Arc::new({
-            let mut triggers_uninit: [MaybeUninit<TriggerOutput>; OUTPUT_TRIGGERS_PER_NODE * GRID_SIZE] = unsafe {
-                MaybeUninit::uninit().assume_init()
-            };
-            for elem in &mut triggers_uninit[..] {
-                elem.write(TriggerOutput {
-                    target_index: AtomicUsize::new(0),
-                    target_input_number: AtomicUsize::new(0),
-                    frame_delay: AtomicUsize::new(0),
-                    enabled: AtomicBool::new(false)
-                });
-            }
-            unsafe {
-                mem::transmute::<_, OutputTriggers>(triggers_uninit)
-            }
-        });
+        let nodes: Arc<Grid> = Arc::new(
+            (0..GRID_SIZE).map(|_| Node::new())
+                .collect::<Vec<Node>>().try_into().unwrap()
+        );
+        let input_triggers: Arc<InputTriggers> = Arc::new(
+            (0..INPUT_TRIGGERS_PER_NODE * GRID_SIZE).map(|_| TriggerInput::new())
+                .collect::<Vec<TriggerInput>>().try_into().unwrap()
+        );
+        let output_triggers: Arc<OutputTriggers> = Arc::new(
+            (0..OUTPUT_TRIGGERS_PER_NODE * GRID_SIZE).map(|_| TriggerOutput::new())
+                .collect::<Vec<TriggerOutput>>().try_into().unwrap()
+        );
 
         let controller = SequencerController {
             nodes: nodes.clone(),
@@ -132,10 +131,14 @@ impl<S> Sequencer<S> where S: OutputSample {
             output_triggers: output_triggers.clone()
         };
 
+        let node_internal_init = NodeInternal {
+            triggered_last_frame: false,
+            triggered_this_frame: false
+        };
         let sequencer = Sequencer {
             sound_bank,
             nodes,
-            nodes_internal: [NodeInternal { triggered_last_frame: false, triggered_this_frame: false}; GRID_SIZE],
+            nodes_internal: [node_internal_init; GRID_SIZE],
             input_triggers,
             output_triggers,
             frames_processed: 0
@@ -196,7 +199,7 @@ impl<S> Sequencer<S> where S: OutputSample {
                     node_internal.triggered_this_frame = false;
                 }
                 if node.is_playing.load(SeqCst) {
-                    let sound_id = node.sound_id.load(SeqCst);
+                    let sound_id = node.sound_index.load(SeqCst);
                     let frame_index = node.current_frame_index.load(SeqCst);
                     if let Some(frame) = self.sound_bank.get_frame(sound_id, frame_index) {
                         out_frame += frame;

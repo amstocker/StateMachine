@@ -4,22 +4,20 @@ use std::time::Duration;
 use std::sync::atomic::Ordering::SeqCst;
 
 use assert_no_alloc::*;
-use dasp::Sample;
-use hound;
 use cpal::{SampleRate, StreamConfig};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use output::OutputFormat;
-use ringbuf::LocalRb;
 use sequencer::Sequencer;
+use ui::UI;
 
+mod ui;
 mod utils;
 mod sound;
 mod interpolator;
 mod sequencer;
 mod output;
 use crate::sound::*;
-use crate::interpolator::*;
-use crate::output::{MonoToStereoFrame, stereo_to_output_frame};
+use crate::output::stereo_to_output_frame;
 
 
 // assert_no_alloc
@@ -44,7 +42,7 @@ fn main() {
         sample_format
     };
 
-    let sound: Sound<f32> = Sound::from_wav_file("samples/hihat.wav", &format);
+    let sound: Sound<f32> = Sound::from_wav_file("samples/kick.wav", &format);
     let mut sound_bank = SoundBank::new();
     sound_bank.add_sound_at_index(0, sound);
 
@@ -65,12 +63,8 @@ fn main() {
     ).unwrap();
     stream.play().unwrap();
 
-    if let Some(node) = controller.nodes.get(0) {
-        node.enabled.store(true, SeqCst);
-        node.is_playing.store(true, SeqCst);
-    }
-
-    thread::sleep(Duration::from_millis(1000));
+    let ui = UI::new(controller);
+    ui.run();
 }
 
 
