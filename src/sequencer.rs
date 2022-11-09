@@ -12,18 +12,33 @@ pub const GRID_SIZE: usize = 16;
 pub const INPUT_TRIGGERS_PER_NODE: usize = 4;
 pub const OUTPUT_TRIGGERS_PER_NODE: usize = 4;
 
-pub type Grid = [Node; GRID_SIZE];
-pub type InputTriggers = [TriggerInput; INPUT_TRIGGERS_PER_NODE * GRID_SIZE];
-pub type OutputTriggers = [TriggerOutput; OUTPUT_TRIGGERS_PER_NODE * GRID_SIZE];
 
-#[inline]
-fn to_input_trigger_index(node_index: usize, input_number: usize) -> usize {
-    (node_index * INPUT_TRIGGERS_PER_NODE) + input_number
+pub type Grid = [Node; GRID_SIZE];
+pub struct InputTriggers([TriggerInput; INPUT_TRIGGERS_PER_NODE * GRID_SIZE]);
+pub struct OutputTriggers([TriggerOutput; OUTPUT_TRIGGERS_PER_NODE * GRID_SIZE]);
+
+impl InputTriggers {
+    #[inline]
+    pub fn get(&self, node_index: usize, input_number: usize) -> &TriggerInput {
+        &self.0[(node_index * INPUT_TRIGGERS_PER_NODE) + input_number]
+    }
+
+    #[inline]
+    fn get_cache(&self, node_index: usize, input_number: usize) -> TriggerInputCache {
+        self.get(node_index, input_number).cache()
+    }
 }
 
-#[inline]
-fn to_output_trigger_index(node_index: usize, output_number: usize) -> usize {
-    (node_index * OUTPUT_TRIGGERS_PER_NODE) + output_number
+impl OutputTriggers {
+    #[inline]
+    pub fn get(&self, node_index: usize, output_number: usize) -> &TriggerOutput {
+        &self.0[(node_index * OUTPUT_TRIGGERS_PER_NODE) + output_number]
+    }
+
+    #[inline]
+    fn get_cache(&self, node_index: usize, output_number: usize) -> TriggerOutputCache {
+        self.get(node_index, output_number).cache()
+    }
 }
 
 #[derive(Debug)]
@@ -51,12 +66,15 @@ struct NodeInternal {
     triggered_last_frame: bool
 }
 
-// UI thread: read only
-// Realtime thread: read & write
 #[derive(Debug)]
 pub struct TriggerInput {
     pub frames_until: AtomicUsize,
     pub pending: AtomicBool,
+}
+
+pub struct TriggerInputCache {
+    frames_until: usize,
+    pending: bool
 }
 
 impl TriggerInput {
@@ -66,16 +84,28 @@ impl TriggerInput {
             pending: AtomicBool::new(false),
         }
     }
+
+    fn cache(&self) -> TriggerInputCache {
+        TriggerInputCache {
+            frames_until: self.frames_until.load(SeqCst),
+            pending: self.pending.load(SeqCst)
+        }
+    }
 }
 
-// UI thread: read & write
-// Realtime thread: read only
 #[derive(Debug)]
 pub struct TriggerOutput {
     pub target_index: AtomicUsize,
     pub target_input_number: AtomicUsize,
     pub frame_delay: AtomicUsize,
     pub enabled: AtomicBool
+}
+
+struct TriggerOutputCache {
+    target_index: usize,
+    target_input_number: usize,
+    frame_delay: usize,
+    enabled: bool
 }
 
 impl TriggerOutput {
@@ -85,6 +115,15 @@ impl TriggerOutput {
             target_input_number: AtomicUsize::new(0),
             frame_delay: AtomicUsize::new(0),
             enabled: AtomicBool::new(false)
+        }
+    }
+
+    fn cache(&self) -> TriggerOutputCache {
+        TriggerOutputCache { 
+            target_index: self.target_index.load(SeqCst),
+            target_input_number: self.target_input_number.load(SeqCst),
+            frame_delay: self.frame_delay.load(SeqCst),
+            enabled: self.enabled.load(SeqCst)
         }
     }
 }
@@ -115,14 +154,14 @@ impl<S> Sequencer<S> where S: OutputSample {
             (0..GRID_SIZE).map(|_| Node::new())
                 .collect::<Vec<Node>>().try_into().unwrap()
         );
-        let input_triggers: Arc<InputTriggers> = Arc::new(
+        let input_triggers: Arc<InputTriggers> = Arc::new(InputTriggers(
             (0..INPUT_TRIGGERS_PER_NODE * GRID_SIZE).map(|_| TriggerInput::new())
                 .collect::<Vec<TriggerInput>>().try_into().unwrap()
-        );
-        let output_triggers: Arc<OutputTriggers> = Arc::new(
+        ));
+        let output_triggers: Arc<OutputTriggers> = Arc::new(OutputTriggers(
             (0..OUTPUT_TRIGGERS_PER_NODE * GRID_SIZE).map(|_| TriggerOutput::new())
                 .collect::<Vec<TriggerOutput>>().try_into().unwrap()
-        );
+        ));
 
         let controller = SequencerController {
             nodes: nodes.clone(),
@@ -152,15 +191,11 @@ impl<S> Sequencer<S> where S: OutputSample {
             let mut node_internal = &mut self.nodes_internal[i];
             if node.enabled.load(SeqCst) && node_internal.triggered_last_frame {
                 for j in 0..OUTPUT_TRIGGERS_PER_NODE {
-                    let trigger = &self.output_triggers[to_output_trigger_index(i, j)];
-                    if trigger.enabled.load(SeqCst) {
-                        let target_index = trigger.target_index.load(SeqCst);
-                        let target_input_number = trigger.target_input_number.load(SeqCst);
-                        let frame_delay = trigger.frame_delay.load(SeqCst);
-
-                        let target_input_trigger = &self.input_triggers[to_input_trigger_index(target_index, target_input_number)];
-                        target_input_trigger.frames_until.store(frame_delay - 1, SeqCst);
-                        target_input_trigger.pending.store(true, SeqCst);
+                    let trigger = &self.output_triggers.get_cache(i, j);
+                    if trigger.enabled {
+                        let target = &self.input_triggers.get(trigger.target_index, trigger.target_input_number);
+                        target.frames_until.store(trigger.frame_delay - 1, SeqCst);
+                        target.pending.store(true, SeqCst);
                     }
                 }
                 node_internal.triggered_last_frame = false;
@@ -171,7 +206,7 @@ impl<S> Sequencer<S> where S: OutputSample {
             let mut node_internal = &mut self.nodes_internal[i];
             if node.enabled.load(SeqCst) {
                 for j in 0..INPUT_TRIGGERS_PER_NODE {
-                    let trigger = &self.input_triggers[to_input_trigger_index(i, j)];
+                    let trigger = &self.input_triggers.get(i, j);
                     if trigger.pending.load(SeqCst) {
                         if trigger.frames_until.load(SeqCst) == 0 {
                             node_internal.triggered_this_frame = true;
@@ -217,6 +252,12 @@ impl<S> Sequencer<S> where S: OutputSample {
         self.update_single_frame();
         self.output_single_frame()
     }
+
+    fn split_borrow(&mut self) -> (&Arc<Grid>, &Arc<InputTriggers>, &Arc<OutputTriggers>) {
+        (&mut self.nodes, &mut self.input_triggers, &mut self.output_triggers)
+    }
+
+
 }
 
 impl<S> Iterator for Sequencer<S> where S: OutputSample {
