@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, AtomicBool};
 use std::sync::atomic::Ordering::SeqCst;
 
-use crate::sound::{SoundBank};
+use crate::sound::{SoundBank, MAX_SOUNDS};
 use crate::output::{OutputSample, StereoFrame};
 
 
@@ -129,11 +129,54 @@ impl TriggerOutput {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum SequencerControlMessage {
+    EnableSound(usize),
+    DisableSound(usize),
+    PlaySound(usize),
+    IncrSoundIndex(usize),
+    DecrSoundIndex(usize)
+}
 
 pub struct SequencerParameters {
     pub nodes: Arc<Grid>,
     pub input_triggers: Arc<InputTriggers>,
     pub output_triggers: Arc<OutputTriggers>,
+}
+
+impl SequencerParameters {
+    pub fn handle_sequencer_control(&self, message: SequencerControlMessage) {
+        use SequencerControlMessage::*;
+        match message {
+            EnableSound(index) => {
+                let node = self.nodes.get(index).unwrap();
+                node.enabled.store(true, SeqCst);
+            },
+            DisableSound(index) => {
+                let node = self.nodes.get(index).unwrap();
+                node.enabled.store(false, SeqCst);
+            },
+            PlaySound(index) => {
+                let node = self.nodes.get(index).unwrap();
+                node.current_frame_index.store(0, SeqCst);
+                node.is_playing.store(true, SeqCst);
+            },
+            IncrSoundIndex(index) => {
+                let node = self.nodes.get(index).unwrap();
+                let sound_index = node.sound_index.load(SeqCst);
+                if sound_index < MAX_SOUNDS {
+                    node.sound_index.fetch_add(1, SeqCst);
+                }
+            },
+            DecrSoundIndex(index) => {
+                let node = self.nodes.get(index).unwrap();
+                let sound_index = node.sound_index.load(SeqCst);
+                if sound_index > 0 {
+                    node.sound_index.fetch_sub(1, SeqCst);
+                }
+            }
+        }
+    }
 }
 
 pub struct Sequencer<S> where S: OutputSample {

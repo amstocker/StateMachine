@@ -12,7 +12,7 @@ use crate::output::stereo_to_output_frame;
 use crate::fonts::*;
 
 use crate::{
-    sequencer::{Sequencer, SequencerParameters, GRID_SIZE, GRID_SIZE_ROOT},
+    sequencer::{Sequencer, SequencerParameters, SequencerControlMessage, GRID_SIZE, GRID_SIZE_ROOT},
     sound::{SoundBankMeta, MAX_SOUNDS, Sound},
     output::{OutputSample, OutputFormat}
 };
@@ -20,11 +20,7 @@ use crate::{
 
 #[derive(Debug, Clone, Copy)]
 pub enum Message {
-    EnableSound(usize),
-    DisableSound(usize),
-    PlaySound(usize),
-    IncrSoundIndex(usize),
-    DecrSoundIndex(usize)
+    Sequencer(SequencerControlMessage)
 }
 
 pub struct Application<S> where S: OutputSample {
@@ -36,6 +32,8 @@ pub struct Application<S> where S: OutputSample {
 
 impl<S> Application<S> where S: OutputSample {
     pub fn node_view<'a>(&'a self, index: usize, node: &'a Node) -> Element<'a, Message> {
+        use SequencerControlMessage::*;
+
         let sound_index = node.sound_index.load(SeqCst);
         let sound_meta = self.sound_bank.get_sound_meta(sound_index).unwrap();
         
@@ -52,19 +50,22 @@ impl<S> Application<S> where S: OutputSample {
             Button::new(
                 Text::new("-")
                     .font(JETBRAINS_MONO)
-            ).on_press(Message::DecrSoundIndex(index))
+            ).on_press(Message::Sequencer(DecrSoundIndex(index)))
         );
         sound_info = sound_info.push(
             Button::new(
                 Text::new("+")
                     .font(JETBRAINS_MONO)
-            ).on_press(Message::IncrSoundIndex(index))
+            ).on_press(Message::Sequencer(IncrSoundIndex(index)))
         );
         sound_info = sound_info.push(
             Space::with_width(Length::Units(3))
         );
         sound_info = sound_info.push(
-            button("Play").on_press(Message::PlaySound(index))
+            Button::new(
+                Text::new("Play")
+                    .font(JETBRAINS_MONO)
+            ).on_press(Message::Sequencer(PlaySound(index)))
         );
         column = column.push(sound_info);
         column = column.push(Space::with_height(Length::Units(3)));
@@ -76,12 +77,12 @@ impl<S> Application<S> where S: OutputSample {
                 Button::new(
                     Text::new("Disable")
                         .font(JETBRAINS_MONO)
-                ).on_press(Message::DisableSound(index))
+                ).on_press(Message::Sequencer(DisableSound(index)))
             } else {
                 Button::new(
                     Text::new("Enable")
                         .font(JETBRAINS_MONO)
-                ).on_press(Message::EnableSound(index))
+                ).on_press(Message::Sequencer(EnableSound(index)))
             }
         );
         column = column.push(enable);
@@ -115,9 +116,9 @@ impl<S> Sandbox for Application<S> where S: 'static + OutputSample {
         let (mut sound_bank_meta, sound_bank) = SoundBank::new();
     
         // Pre-load with some drum sounds...
-        sound_bank_meta.add_sound(Sound::from_wav_file("samples/kick.wav", &format)).unwrap();
-        sound_bank_meta.add_sound(Sound::from_wav_file("samples/snare.wav", &format)).unwrap();
-        sound_bank_meta.add_sound(Sound::from_wav_file("samples/hihat.wav", &format)).unwrap();
+        sound_bank_meta.add_sound(Sound::from_wav_file("assets/samples/kick.wav", &format)).unwrap();
+        sound_bank_meta.add_sound(Sound::from_wav_file("assets/samples/snare.wav", &format)).unwrap();
+        sound_bank_meta.add_sound(Sound::from_wav_file("assets/samples/hihat.wav", &format)).unwrap();
 
         let (controller, mut sequencer) = Sequencer::new(sound_bank);
 
@@ -149,35 +150,8 @@ impl<S> Sandbox for Application<S> where S: 'static + OutputSample {
     }
 
     fn update(&mut self, message: Message) {
-        use Message::*;
         match message {
-            EnableSound(index) => {
-                let node = self.sequencer_params.nodes.get(index).unwrap();
-                node.enabled.store(true, SeqCst);
-            },
-            DisableSound(index) => {
-                let node = self.sequencer_params.nodes.get(index).unwrap();
-                node.enabled.store(false, SeqCst);
-            },
-            PlaySound(index) => {
-                let node = self.sequencer_params.nodes.get(index).unwrap();
-                node.current_frame_index.store(0, SeqCst);
-                node.is_playing.store(true, SeqCst);
-            },
-            IncrSoundIndex(index) => {
-                let node = self.sequencer_params.nodes.get(index).unwrap();
-                let sound_index = node.sound_index.load(SeqCst);
-                if sound_index < MAX_SOUNDS {
-                    node.sound_index.fetch_add(1, SeqCst);
-                }
-            },
-            DecrSoundIndex(index) => {
-                let node = self.sequencer_params.nodes.get(index).unwrap();
-                let sound_index = node.sound_index.load(SeqCst);
-                if sound_index > 0 {
-                    node.sound_index.fetch_sub(1, SeqCst);
-                }
-            }
+            Message::Sequencer(control) => self.sequencer_params.handle_sequencer_control(control)
         }
     }
 
