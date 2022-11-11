@@ -101,13 +101,11 @@ impl Application for Torsion {
 
     fn new(config: Config) -> (Self, Command<Message>) {
         let (mut sound_bank_meta, sound_bank) = SoundBank::new();
+        for sound in config.init_sounds {
+            let meta = sound_bank_meta.add_sound(sound).unwrap();
+        }
     
-        // Pre-load with some drum sounds...
-        sound_bank_meta.add_sound(Sound::from_wav_file("assets/samples/kick.wav", &config.output)).unwrap();
-        sound_bank_meta.add_sound(Sound::from_wav_file("assets/samples/snare.wav", &config.output)).unwrap();
-        sound_bank_meta.add_sound(Sound::from_wav_file("assets/samples/hihat.wav", &config.output)).unwrap();
-
-        let (sequencer_params, mut sequencer) = Sequencer::new(sound_bank);
+        let (sequencer_params, sequencer) = Sequencer::new(sound_bank);
 
         let mut engine = Engine::new(config.output);
         engine.run(sequencer);

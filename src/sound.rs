@@ -103,7 +103,7 @@ pub struct Sound<S> where S: OutputSample {
     pub data: Vec<StereoFrame<S>>
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct SoundMeta {
     pub name: String,
     pub length: usize,

@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use dasp::{Sample, sample::{FromSample, ToSample}};
 use cpal::{Device, StreamConfig, SampleFormat};
 use cpal::traits::{DeviceTrait, HostTrait};
@@ -31,32 +33,30 @@ impl Default for OutputConfig {
 }
 
 pub trait OutputSample:
-    Sample
-    + cpal::Sample
+    Sample + cpal::Sample
     + ToSample<i16> + FromSample<i16>
     + ToSample<u16> + FromSample<u16>
     + ToSample<f32> + FromSample<f32>
+    + ToSample<i32> + FromSample<i32>
     + ToSample<Float> + FromSample<Float>
     + std::ops::AddAssign
-    + Send
     {}
 
 impl<S> OutputSample for S where S:
-    Sample
-    + cpal::Sample
+    Sample + cpal::Sample
     + ToSample<i16> + FromSample<i16>
     + ToSample<u16> + FromSample<u16>
     + ToSample<f32> + FromSample<f32>
+    + ToSample<i32> + FromSample<i32>
     + ToSample<Float> + FromSample<Float>
     + std::ops::AddAssign
-    + Send
     {}
 
 
 // TODO: cpal has a FrameCount type
 pub type Frames = usize;
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct StereoFrame<S>(pub S, pub S) where S: OutputSample;
 
 impl<S> StereoFrame<S> where S: OutputSample {
