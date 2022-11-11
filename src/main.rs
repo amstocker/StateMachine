@@ -1,24 +1,23 @@
-mod ui;
+mod application;
 mod fonts;
 mod utils;
 mod sound;
 mod interpolator;
 mod sequencer;
 mod output;
+mod config;
+mod engine;
 
-use assert_no_alloc::*;
+use iced::{Application, Settings};
 
-use iced::{Sandbox, Settings};
-use ui::Application;
-
-// assert_no_alloc
-#[cfg(debug_assertions)]
-#[global_allocator]
-static A: AllocDisabler = AllocDisabler;
+use crate::application::Torsion;
 
 
 fn main() -> iced::Result {
-    Application::<f32>::run(Settings::default())
+    Torsion::run(Settings {
+        flags: Default::default(),
+        ..Settings::default()
+    })
 }
 
 

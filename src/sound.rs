@@ -5,10 +5,10 @@ use hound::SampleFormat;
 use hound::WavReader;
 use rtrb::{RingBuffer, Consumer, Producer};
 
-use crate::interpolator::InterpolatorFloat;
+use crate::application::Float;
 use crate::interpolator::LinearInterpolator;
 use crate::output::MonoToStereoFrame;
-use crate::output::OutputFormat;
+use crate::output::OutputConfig;
 use crate::output::OutputSample;
 use crate::output::Frames;
 use crate::output::StereoFrame;
@@ -119,7 +119,7 @@ impl<S> Sound<S> where S: OutputSample {
         }
     }
 
-    pub fn from_wav_file(path: &str, format: &OutputFormat) -> Sound<S> {
+    pub fn from_wav_file(path: &str, format: &OutputConfig) -> Sound<S> {
         let path = PathBuf::from(path);
         let name = path.file_stem().unwrap()
                                .to_str().unwrap()
@@ -135,7 +135,7 @@ impl<S> Sound<S> where S: OutputSample {
                    .map(|s| s.to_sample::<S>());
                 MonoToStereoFrame::new(LinearInterpolator::new(
                     data,
-                    (format.sample_rate as InterpolatorFloat) / (sample_rate as InterpolatorFloat)
+                    (format.sample_rate as Float) / (sample_rate as Float)
                 )).collect()
             },
             SampleFormat::Int => {
@@ -144,7 +144,7 @@ impl<S> Sound<S> where S: OutputSample {
                    .map(|s| s.to_sample::<S>());
                 MonoToStereoFrame::new(LinearInterpolator::new(
                     data,
-                    (format.sample_rate as InterpolatorFloat) / (sample_rate as InterpolatorFloat)
+                    (format.sample_rate as Float) / (sample_rate as Float)
                 )).collect()
             }
         };

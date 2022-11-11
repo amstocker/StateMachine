@@ -1,16 +1,15 @@
 use dasp::Sample;
 
 use crate::output::OutputSample;
+use crate::application::Float;
 
-
-pub type InterpolatorFloat = f64;
 
 pub struct LinearInterpolator<I> where I: Iterator {
     iterator: I,
     prev: Option<I::Item>,
     next: Option<I::Item>,
-    ratio: InterpolatorFloat,
-    step: InterpolatorFloat
+    ratio: Float,
+    step: Float
 }
 
 impl<I> LinearInterpolator<I>
@@ -18,7 +17,7 @@ where
     I: Iterator,
     I::Item: OutputSample
 {
-    pub fn new(mut iterator: I, ratio: InterpolatorFloat) -> Self {
+    pub fn new(mut iterator: I, ratio: Float) -> Self {
         let prev = iterator.next();
         let next = iterator.next();
         Self {
@@ -30,11 +29,11 @@ where
         }
     }
 
-    fn interpolate(&self, t: InterpolatorFloat) -> Option<I::Item> {
+    fn interpolate(&self, t: Float) -> Option<I::Item> {
         if let Some(a) = self.prev {
-            let a = a.to_sample::<InterpolatorFloat>();
+            let a = a.to_sample::<Float>();
             if let Some(b) = self.next {
-                let b = b.to_sample::<InterpolatorFloat>();
+                let b = b.to_sample::<Float>();
                 return Some(((1.0 - t) * a + t * b).to_sample::<I::Item>());
             } else {
                 return Some(((1.0 - t) * a).to_sample::<I::Item>());

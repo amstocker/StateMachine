@@ -1,41 +1,40 @@
 use std::sync::atomic::Ordering::SeqCst;
 
-use assert_no_alloc::*;
-use iced::widget::{button, column, text, Column, Text, Row, Button, Container, Space};
-use iced::{Alignment, Element, Sandbox, Settings, Length, alignment::Vertical};
-use cpal::{SampleRate, StreamConfig, Stream};
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use iced::{executor, Theme, Command};
+use iced::widget::{Column, Text, Row, Button, Container, Space};
+use iced::{Application, Element, Length};
 
+use crate::config::Config;
+use crate::engine::Engine;
 use crate::sequencer::Node;
 use crate::sound::*;
-use crate::output::stereo_to_output_frame;
 use crate::fonts::*;
 
 use crate::{
-    sequencer::{Sequencer, SequencerParameters, SequencerControlMessage, GRID_SIZE, GRID_SIZE_ROOT},
-    sound::{SoundBankMeta, MAX_SOUNDS, Sound},
-    output::{OutputSample, OutputFormat}
+    sequencer::{Sequencer, SequencerParameters, SequencerControlMessage, GRID_SIZE_ROOT},
+    sound::{SoundBankMeta, Sound},
 };
 
+
+pub type Float = f32;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Message {
     Sequencer(SequencerControlMessage)
 }
 
-pub struct Application<S> where S: OutputSample {
-    sound_bank: SoundBankMeta<S>,
+pub struct Torsion {
+    sound_bank_meta: SoundBankMeta<Float>,
     sequencer_params: SequencerParameters,
-    output_format: OutputFormat,
-    output_stream: Stream
+    engine: Engine
 }
 
-impl<S> Application<S> where S: OutputSample {
+impl Torsion {
     pub fn node_view<'a>(&'a self, index: usize, node: &'a Node) -> Element<'a, Message> {
         use SequencerControlMessage::*;
 
         let sound_index = node.sound_index.load(SeqCst);
-        let sound_meta = self.sound_bank.get_sound_meta(sound_index).unwrap();
+        let sound_meta = self.sound_bank_meta.get_sound_meta(sound_index).unwrap();
         
         let mut column = Column::new();
         let mut sound_info = Row::new();
@@ -94,65 +93,45 @@ impl<S> Application<S> where S: OutputSample {
     }
 }
 
-impl<S> Sandbox for Application<S> where S: 'static + OutputSample {
+impl Application for Torsion {
+    type Executor = executor::Default;
     type Message = Message;
+    type Theme = Theme;
+    type Flags = Config;
 
-    fn new() -> Self {
-        let host = cpal::default_host();
-        let device = host.default_output_device().unwrap();
-
-        let supported_config = device.default_output_config().unwrap();
-        let sample_format = supported_config.sample_format();
-        let config: StreamConfig = supported_config.into();
-
-        let num_channels = config.channels as usize;
-        let SampleRate(sample_rate) = config.sample_rate;
-        let format = OutputFormat {
-            channels: num_channels,
-            sample_rate: sample_rate as f32,
-            sample_format
-        };
-
+    fn new(config: Config) -> (Self, Command<Message>) {
         let (mut sound_bank_meta, sound_bank) = SoundBank::new();
     
         // Pre-load with some drum sounds...
-        sound_bank_meta.add_sound(Sound::from_wav_file("assets/samples/kick.wav", &format)).unwrap();
-        sound_bank_meta.add_sound(Sound::from_wav_file("assets/samples/snare.wav", &format)).unwrap();
-        sound_bank_meta.add_sound(Sound::from_wav_file("assets/samples/hihat.wav", &format)).unwrap();
+        sound_bank_meta.add_sound(Sound::from_wav_file("assets/samples/kick.wav", &config.output)).unwrap();
+        sound_bank_meta.add_sound(Sound::from_wav_file("assets/samples/snare.wav", &config.output)).unwrap();
+        sound_bank_meta.add_sound(Sound::from_wav_file("assets/samples/hihat.wav", &config.output)).unwrap();
 
-        let (controller, mut sequencer) = Sequencer::new(sound_bank);
+        let (sequencer_params, mut sequencer) = Sequencer::new(sound_bank);
 
-        let stream = device.build_output_stream(
-            &config,
-            move |data: &mut [S], _| {
-                assert_no_alloc(|| {
-                    for out_frame in data.chunks_mut(format.channels) {
-                        stereo_to_output_frame(out_frame, sequencer.next_frame(), num_channels, (0, 1));
-                    }
-                });
+        let mut engine = Engine::new(config.output);
+        engine.run(sequencer);
+
+        (
+            Self { 
+                sound_bank_meta,
+                sequencer_params,
+                engine
             },
-            move |err| {
-                println!{"{}", err};
-            },
-        ).unwrap();
-        stream.play().unwrap();
+            Command::none()
+        )
 
-        Self { 
-            sound_bank: sound_bank_meta,
-            sequencer_params: controller,
-            output_format: format,
-            output_stream: stream
-        }
     }
 
     fn title(&self) -> String {
         String::from("State Machine")
     }
 
-    fn update(&mut self, message: Message) {
+    fn update(&mut self, message: Message) -> Command<Message> {
         match message {
             Message::Sequencer(control) => self.sequencer_params.handle_sequencer_control(control)
         }
+        Command::none()
     }
 
     fn view(&self) -> Element<Message> {

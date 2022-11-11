@@ -1,12 +1,33 @@
 use dasp::{Sample, sample::{FromSample, ToSample}};
+use cpal::{Device, StreamConfig, SampleFormat};
+use cpal::traits::{DeviceTrait, HostTrait};
 
-use crate::interpolator::InterpolatorFloat;
+use crate::application::Float;
 
-
-pub struct OutputFormat {
+pub struct OutputConfig {
+    pub device: Device,
     pub channels: usize,
-    pub sample_rate: f32,
-    pub sample_format: cpal::SampleFormat
+    pub output_channels: (usize, usize),
+    pub sample_rate: usize,
+    pub sample_format: SampleFormat,
+    pub stream_config: StreamConfig
+}
+
+impl Default for OutputConfig {
+    fn default() -> Self {
+        let host = cpal::default_host();
+        let device = host.default_output_device().unwrap();
+        let supported_config = device.default_output_config().unwrap();
+        
+        Self { 
+            device,
+            channels: supported_config.channels() as usize,
+            output_channels: (0, 1),
+            sample_rate: supported_config.sample_rate().0 as usize,
+            sample_format: supported_config.sample_format(),
+            stream_config: supported_config.into()
+        }
+    }
 }
 
 pub trait OutputSample:
@@ -15,7 +36,7 @@ pub trait OutputSample:
     + ToSample<i16> + FromSample<i16>
     + ToSample<u16> + FromSample<u16>
     + ToSample<f32> + FromSample<f32>
-    + ToSample<InterpolatorFloat> + FromSample<InterpolatorFloat>
+    + ToSample<Float> + FromSample<Float>
     + std::ops::AddAssign
     + Send
     {}
@@ -26,11 +47,13 @@ impl<S> OutputSample for S where S:
     + ToSample<i16> + FromSample<i16>
     + ToSample<u16> + FromSample<u16>
     + ToSample<f32> + FromSample<f32>
-    + ToSample<InterpolatorFloat> + FromSample<InterpolatorFloat>
+    + ToSample<Float> + FromSample<Float>
     + std::ops::AddAssign
     + Send
     {}
 
+
+// TODO: cpal has a FrameCount type
 pub type Frames = usize;
 
 #[derive(Clone, Copy)]
@@ -40,6 +63,13 @@ impl<S> StereoFrame<S> where S: OutputSample {
     #[inline]
     pub fn zero() -> StereoFrame<S> {
         StereoFrame(S::EQUILIBRIUM, S::EQUILIBRIUM)
+    }
+
+    pub fn get_channel(&self, channel: StereoChannel) -> S {
+        match channel {
+            StereoChannel::Left => self.left(),
+            StereoChannel::Right => self.right()
+        }
     }
 
     #[inline]
@@ -58,6 +88,10 @@ impl<S> std::ops::AddAssign for StereoFrame<S> where S: OutputSample {
         self.0 += rhs.0;
         self.1 += rhs.1;
     }
+}
+
+pub trait StereoFrameGenerator<S> where S: OutputSample {
+    fn next_frame(&mut self) -> StereoFrame<S>;
 }
 
 pub enum StereoChannel {
@@ -86,22 +120,4 @@ impl<I> Iterator for MonoToStereoFrame<I> where I: Iterator, I::Item: OutputSamp
         }
         None
     }
-}
-
-#[inline]
-pub fn stereo_to_output_frame<S: OutputSample>(
-    output_frame: &mut [S],
-    input_frame: StereoFrame<S>,
-    num_channels: usize,
-    output_channels: (usize, usize)
-) {
-    for (i, out_sample) in output_frame.iter_mut().enumerate() {
-        if i == output_channels.0 % num_channels {
-            *out_sample = input_frame.left();
-        } else if i == output_channels.1 % num_channels {
-            *out_sample = input_frame.right();
-        } else {
-            *out_sample = S::EQUILIBRIUM;
-        }
-    } 
 }

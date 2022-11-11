@@ -2,8 +2,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, AtomicBool};
 use std::sync::atomic::Ordering::SeqCst;
 
+use crate::application::Float;
 use crate::sound::{SoundBank, MAX_SOUNDS};
-use crate::output::{OutputSample, StereoFrame};
+use crate::output::{OutputSample, StereoFrame, StereoFrameGenerator};
 
 
 // Sound nodes are on a four-by-four grid
@@ -179,8 +180,8 @@ impl SequencerParameters {
     }
 }
 
-pub struct Sequencer<S> where S: OutputSample {
-    sound_bank: SoundBank<S>,
+pub struct Sequencer {
+    sound_bank: SoundBank<Float>,
     nodes: Arc<Grid>,
     nodes_internal: [NodeInternal; GRID_SIZE],
     input_triggers: Arc<InputTriggers>,
@@ -188,8 +189,8 @@ pub struct Sequencer<S> where S: OutputSample {
     frames_processed: u64
 }
 
-impl<S> Sequencer<S> where S: OutputSample {
-    pub fn new(sound_bank: SoundBank<S>) -> (SequencerParameters, Sequencer<S>) {
+impl Sequencer {
+    pub fn new(sound_bank: SoundBank<Float>) -> (SequencerParameters, Sequencer) {
         let nodes: Arc<Grid> = Arc::new(
             (0..GRID_SIZE).map(|_| Node::new())
                 .collect::<Vec<Node>>().try_into().unwrap()
@@ -260,7 +261,10 @@ impl<S> Sequencer<S> where S: OutputSample {
         }
     }
 
-    pub fn output_single_frame(&mut self) -> StereoFrame<S> {
+    pub fn output_single_frame(&mut self) -> StereoFrame<Float> {
+        self.sound_bank.update();
+        self.update_single_frame();
+        
         let mut out_frame = StereoFrame::zero();
         
         for i in 0..GRID_SIZE {
@@ -287,16 +291,16 @@ impl<S> Sequencer<S> where S: OutputSample {
         self.frames_processed += 1;
         out_frame
     }
+}
 
-    pub fn next_frame(&mut self) -> StereoFrame<S> {
-        self.sound_bank.update();
-        self.update_single_frame();
+impl StereoFrameGenerator<Float> for Sequencer {
+    fn next_frame(&mut self) -> StereoFrame<Float> {
         self.output_single_frame()
     }
 }
 
-impl<S> Iterator for Sequencer<S> where S: OutputSample {
-    type Item = StereoFrame<S>;
+impl Iterator for Sequencer {
+    type Item = StereoFrame<Float>;
 
     fn next(&mut self) -> Option<Self::Item> {
         Some(self.next_frame())
