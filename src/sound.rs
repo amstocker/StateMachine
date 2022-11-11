@@ -64,22 +64,28 @@ pub struct SoundBank<S> where S: OutputSample {
 }
 
 impl<S> SoundBank<S> where S: OutputSample {
-    pub fn new() -> (SoundBankMetadata<S>, SoundBank<S>) {
+    pub fn new(sounds: Vec<Sound<S>>) -> (SoundBankMetadata<S>, SoundBank<S>) {
         let (producer, consumer) = RingBuffer::new(MAX_SOUNDS);
 
-        let sound_bank_metadata = SoundBankMetadata {
+        let mut sound_bank_metadata = SoundBankMetadata {
             metadata: Default::default(),
             producer
         };
-        let sound_bank = SoundBank {
+        let mut sound_bank = SoundBank {
             sounds: Default::default(),
             consumer
         };
+
+        for sound in sounds {
+            sound_bank_metadata.add_sound(sound).unwrap();
+        }
+        sound_bank.update();
+
         (sound_bank_metadata, sound_bank)
     }
 
     pub fn update(&mut self) {
-        if let Ok(item) = self.consumer.pop() {
+        while let Ok(item) = self.consumer.pop() {
             use SoundBankControl::*;
             match item {
                 Set { index, sound } => {

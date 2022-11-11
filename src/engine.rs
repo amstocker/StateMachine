@@ -36,7 +36,7 @@ impl Engine {
                 self.build_stream::<u16, _>(generator)
             },
             F32 => {
-                 self.build_stream::<f32, _>(generator)
+                self.build_stream::<f32, _>(generator)
             }
         };
         stream.play().unwrap();

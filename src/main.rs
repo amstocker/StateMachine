@@ -24,7 +24,7 @@ fn main() -> iced::Result {
         "assets/samples/hihat.wav"
     ];
     for path in files {
-        config.init_sounds.push(Sound::from_wav_file(path, &config.output));
+        config.sounds.push(Sound::from_wav_file(path, &config.output));
     }
 
     Torsion::run(Settings {

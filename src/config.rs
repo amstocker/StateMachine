@@ -8,5 +8,5 @@ use crate::{
 #[derive(Default)]
 pub struct Config {
     pub output: OutputConfig,
-    pub init_sounds: Vec<Sound<Float>>
+    pub sounds: Vec<Sound<Float>>
 }

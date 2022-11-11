@@ -100,16 +100,13 @@ impl Application for Torsion {
     type Flags = Config;
 
     fn new(config: Config) -> (Self, Command<Message>) {
-        let (mut sound_bank_metadata, sound_bank) = SoundBank::new();
-        for sound in config.init_sounds {
-            sound_bank_metadata.add_sound(sound).unwrap();
-        }
+        let (sound_bank_metadata, sound_bank) = SoundBank::new(config.sounds);
     
         let (sequencer_params, sequencer) = Sequencer::new(sound_bank);
 
         let mut engine = Engine::new(config.output);
+        
         engine.run(sequencer);
-
         (
             Self { 
                 sound_bank_metadata,
@@ -118,7 +115,6 @@ impl Application for Torsion {
             },
             Command::none()
         )
-
     }
 
     fn title(&self) -> String {
