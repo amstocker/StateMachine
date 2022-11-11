@@ -23,35 +23,35 @@ enum SoundBankControl<S> where S: OutputSample {
     }
 }
 
-pub struct SoundBankMeta<S> where S: OutputSample {
-    pub meta_data: [Option<SoundMeta>; MAX_SOUNDS],
+pub struct SoundBankMetadata<S> where S: OutputSample {
+    pub metadata: [Option<SoundMetadata>; MAX_SOUNDS],
     producer: Producer<SoundBankControl<S>>
 }
 
-impl<S> SoundBankMeta<S> where S: OutputSample {
-    pub fn add_sound(&mut self, sound: Sound<S>) -> Option<SoundMeta> {
-        for (i, slot) in &mut self.meta_data.iter_mut().enumerate() {
+impl<S> SoundBankMetadata<S> where S: OutputSample {
+    pub fn add_sound(&mut self, sound: Sound<S>) -> Option<SoundMetadata> {
+        for (i, slot) in &mut self.metadata.iter_mut().enumerate() {
             if slot.is_none() {
-                let meta = SoundMeta {
+                let metadata = SoundMetadata {
                     name: sound.name.clone(),
                     length: sound.data.len(),
                     index: i
                 };
-                *slot = Some(meta.clone());
+                *slot = Some(metadata.clone());
                 self.producer.push(SoundBankControl::Set {
                     index: i,
                     sound: Some(sound)
                 }).unwrap();
-                return Some(meta);
+                return Some(metadata);
             }
         }
         None
     }
 
-    pub fn get_sound_meta(&self, index: usize) -> Option<&SoundMeta> {
-        let slot = self.meta_data.get(index)?;
-        if let Some(sound_meta) = slot {
-            Some(&sound_meta)
+    pub fn get(&self, index: usize) -> Option<&SoundMetadata> {
+        let slot = self.metadata.get(index)?;
+        if let Some(sound_metadata) = slot {
+            Some(&sound_metadata)
         } else {
             None
         }
@@ -64,18 +64,18 @@ pub struct SoundBank<S> where S: OutputSample {
 }
 
 impl<S> SoundBank<S> where S: OutputSample {
-    pub fn new() -> (SoundBankMeta<S>, SoundBank<S>) {
+    pub fn new() -> (SoundBankMetadata<S>, SoundBank<S>) {
         let (producer, consumer) = RingBuffer::new(MAX_SOUNDS);
 
-        let sound_bank_meta = SoundBankMeta {
-            meta_data: Default::default(),
+        let sound_bank_metadata = SoundBankMetadata {
+            metadata: Default::default(),
             producer
         };
         let sound_bank = SoundBank {
             sounds: Default::default(),
             consumer
         };
-        (sound_bank_meta, sound_bank)
+        (sound_bank_metadata, sound_bank)
     }
 
     pub fn update(&mut self) {
@@ -104,7 +104,7 @@ pub struct Sound<S> where S: OutputSample {
 }
 
 #[derive(Debug, Clone)]
-pub struct SoundMeta {
+pub struct SoundMetadata {
     pub name: String,
     pub length: usize,
     pub index: usize

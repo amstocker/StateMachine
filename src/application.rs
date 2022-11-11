@@ -12,7 +12,7 @@ use crate::fonts::*;
 
 use crate::{
     sequencer::{Sequencer, SequencerParameters, SequencerControlMessage, GRID_SIZE_ROOT},
-    sound::{SoundBankMeta, Sound},
+    sound::{SoundBankMetadata},
 };
 
 
@@ -24,7 +24,7 @@ pub enum Message {
 }
 
 pub struct Torsion {
-    sound_bank_meta: SoundBankMeta<Float>,
+    sound_bank_metadata: SoundBankMetadata<Float>,
     sequencer_params: SequencerParameters,
     engine: Engine
 }
@@ -34,12 +34,12 @@ impl Torsion {
         use SequencerControlMessage::*;
 
         let sound_index = node.sound_index.load(SeqCst);
-        let sound_meta = self.sound_bank_meta.get_sound_meta(sound_index).unwrap();
+        let sound_metadata = self.sound_bank_metadata.get(sound_index).unwrap();
         
         let mut column = Column::new();
         let mut sound_info = Row::new();
         sound_info = sound_info.push(
-            Text::new(&sound_meta.name)
+            Text::new(&sound_metadata.name)
                 .font(JETBRAINS_MONO_BOLD)
         );
         sound_info = sound_info.push(
@@ -100,9 +100,9 @@ impl Application for Torsion {
     type Flags = Config;
 
     fn new(config: Config) -> (Self, Command<Message>) {
-        let (mut sound_bank_meta, sound_bank) = SoundBank::new();
+        let (mut sound_bank_metadata, sound_bank) = SoundBank::new();
         for sound in config.init_sounds {
-            let meta = sound_bank_meta.add_sound(sound).unwrap();
+            sound_bank_metadata.add_sound(sound).unwrap();
         }
     
         let (sequencer_params, sequencer) = Sequencer::new(sound_bank);
@@ -112,7 +112,7 @@ impl Application for Torsion {
 
         (
             Self { 
-                sound_bank_meta,
+                sound_bank_metadata,
                 sequencer_params,
                 engine
             },
