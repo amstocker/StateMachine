@@ -1,14 +1,15 @@
 use std::sync::atomic::Ordering::SeqCst;
 
 use assert_no_alloc::*;
-use iced::widget::{button, column, text, Column, Text, Row, Button, Container};
-use iced::{Alignment, Element, Sandbox, Settings};
+use iced::widget::{button, column, text, Column, Text, Row, Button, Container, Space};
+use iced::{Alignment, Element, Sandbox, Settings, Length, alignment::Vertical};
 use cpal::{SampleRate, StreamConfig, Stream};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 
 use crate::sequencer::Node;
 use crate::sound::*;
 use crate::output::stereo_to_output_frame;
+use crate::fonts::*;
 
 use crate::{
     sequencer::{Sequencer, SequencerParameters, GRID_SIZE, GRID_SIZE_ROOT},
@@ -20,12 +21,13 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 pub enum Message {
     EnableSound(usize),
+    DisableSound(usize),
     PlaySound(usize),
-    DisableSound(usize)
+    IncrSoundIndex(usize),
+    DecrSoundIndex(usize)
 }
 
 pub struct Application<S> where S: OutputSample {
-    value: usize,
     sound_bank: SoundBankMeta<S>,
     sequencer_params: SequencerParameters,
     output_format: OutputFormat,
@@ -33,25 +35,61 @@ pub struct Application<S> where S: OutputSample {
 }
 
 impl<S> Application<S> where S: OutputSample {
-    pub fn node_view<'a>(&'a self, node: &'a Node) -> Column<'a, Message> {
+    pub fn node_view<'a>(&'a self, index: usize, node: &'a Node) -> Element<'a, Message> {
         let sound_index = node.sound_index.load(SeqCst);
         let sound_meta = self.sound_bank.get_sound_meta(sound_index).unwrap();
         
         let mut column = Column::new();
-        column = column.push(Text::new(&sound_meta.name));
+        let mut sound_info = Row::new();
+        sound_info = sound_info.push(
+            Text::new(&sound_meta.name)
+                .font(JETBRAINS_MONO_BOLD)
+        );
+        sound_info = sound_info.push(
+            Space::with_width(Length::Fill)
+        );
+        sound_info = sound_info.push(
+            Button::new(
+                Text::new("-")
+                    .font(JETBRAINS_MONO)
+            ).on_press(Message::DecrSoundIndex(index))
+        );
+        sound_info = sound_info.push(
+            Button::new(
+                Text::new("+")
+                    .font(JETBRAINS_MONO)
+            ).on_press(Message::IncrSoundIndex(index))
+        );
+        sound_info = sound_info.push(
+            Space::with_width(Length::Units(3))
+        );
+        sound_info = sound_info.push(
+            button("Play").on_press(Message::PlaySound(index))
+        );
+        column = column.push(sound_info);
+        column = column.push(Space::with_height(Length::Units(3)));
     
-        let mut button_row = Row::new();
-        let enable_button = if node.enabled.load(SeqCst) {
-            button("Disable").on_press(Message::DisableSound(sound_index))
-        } else {
-            button("Enable").on_press(Message::EnableSound(sound_index))
-        };
-        let play_button = button("Play").on_press(Message::PlaySound(sound_index));
-        button_row = button_row.push(enable_button);
-        button_row = button_row.push(play_button);
-    
-        column = column.push(button_row);
-        column
+        let mut enable = Row::new();
+        enable = enable.push(Space::with_width(Length::Fill));
+        enable = enable.push(
+            if node.enabled.load(SeqCst) {
+                Button::new(
+                    Text::new("Disable")
+                        .font(JETBRAINS_MONO)
+                ).on_press(Message::DisableSound(index))
+            } else {
+                Button::new(
+                    Text::new("Enable")
+                        .font(JETBRAINS_MONO)
+                ).on_press(Message::EnableSound(index))
+            }
+        );
+        column = column.push(enable);
+
+        Container::new(column)
+            .width(Length::Units(150))
+            .padding(5)
+            .into()
     }
 }
 
@@ -99,7 +137,6 @@ impl<S> Sandbox for Application<S> where S: 'static + OutputSample {
         stream.play().unwrap();
 
         Self { 
-            value: 0,
             sound_bank: sound_bank_meta,
             sequencer_params: controller,
             output_format: format,
@@ -108,24 +145,39 @@ impl<S> Sandbox for Application<S> where S: 'static + OutputSample {
     }
 
     fn title(&self) -> String {
-        String::from("Counter - Iced")
+        String::from("State Machine")
     }
 
     fn update(&mut self, message: Message) {
+        use Message::*;
         match message {
-            Message::PlaySound(index) => {
+            EnableSound(index) => {
+                let node = self.sequencer_params.nodes.get(index).unwrap();
+                node.enabled.store(true, SeqCst);
+            },
+            DisableSound(index) => {
+                let node = self.sequencer_params.nodes.get(index).unwrap();
+                node.enabled.store(false, SeqCst);
+            },
+            PlaySound(index) => {
                 let node = self.sequencer_params.nodes.get(index).unwrap();
                 node.current_frame_index.store(0, SeqCst);
                 node.is_playing.store(true, SeqCst);
             },
-            Message::EnableSound(index) => {
+            IncrSoundIndex(index) => {
                 let node = self.sequencer_params.nodes.get(index).unwrap();
-                node.enabled.store(true, SeqCst);
+                let sound_index = node.sound_index.load(SeqCst);
+                if sound_index < MAX_SOUNDS {
+                    node.sound_index.fetch_add(1, SeqCst);
+                }
             },
-            Message::DisableSound(index) => {
+            DecrSoundIndex(index) => {
                 let node = self.sequencer_params.nodes.get(index).unwrap();
-                node.enabled.store(false, SeqCst);
-            } 
+                let sound_index = node.sound_index.load(SeqCst);
+                if sound_index > 0 {
+                    node.sound_index.fetch_sub(1, SeqCst);
+                }
+            }
         }
     }
 
@@ -136,7 +188,7 @@ impl<S> Sandbox for Application<S> where S: 'static + OutputSample {
             for i in 0..GRID_SIZE_ROOT {
                 let index = j * GRID_SIZE_ROOT + i;
                 let node = self.sequencer_params.nodes.get(index).unwrap();
-                row = row.push(self.node_view(node));
+                row = row.push(self.node_view(index, node));
             }
             column = column.push(row);
         }

@@ -1,4 +1,5 @@
 mod ui;
+mod fonts;
 mod utils;
 mod sound;
 mod interpolator;
