@@ -11,26 +11,30 @@ pub struct OutputFormat {
 
 pub trait OutputSample:
     Sample
+    + cpal::Sample
     + ToSample<i16> + FromSample<i16>
     + ToSample<u16> + FromSample<u16>
     + ToSample<f32> + FromSample<f32>
     + ToSample<InterpolatorFloat> + FromSample<InterpolatorFloat>
     + std::ops::AddAssign
+    + Send
     {}
 
 impl<S> OutputSample for S where S:
     Sample
+    + cpal::Sample
     + ToSample<i16> + FromSample<i16>
     + ToSample<u16> + FromSample<u16>
     + ToSample<f32> + FromSample<f32>
     + ToSample<InterpolatorFloat> + FromSample<InterpolatorFloat>
     + std::ops::AddAssign
+    + Send
     {}
 
 pub type Frames = usize;
 
 #[derive(Clone, Copy)]
-pub struct StereoFrame<S>(S, S) where S: OutputSample;
+pub struct StereoFrame<S>(pub S, pub S) where S: OutputSample;
 
 impl<S> StereoFrame<S> where S: OutputSample {
     #[inline]
@@ -84,6 +88,7 @@ impl<I> Iterator for MonoToStereoFrame<I> where I: Iterator, I::Item: OutputSamp
     }
 }
 
+#[inline]
 pub fn stereo_to_output_frame<S: OutputSample>(
     output_frame: &mut [S],
     input_frame: StereoFrame<S>,

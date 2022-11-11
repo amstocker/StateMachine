@@ -1,9 +1,6 @@
 use std::path::PathBuf;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
 
 use dasp::Sample;
-use dasp::sample::types::i11::MAX;
 use hound::SampleFormat;
 use hound::WavReader;
 use rtrb::{RingBuffer, Consumer, Producer};
@@ -130,7 +127,7 @@ impl<S> Sound<S> where S: OutputSample {
         let wav = WavReader::open(path).unwrap();
         let sample_rate = wav.spec().sample_rate;
 
-        // need to handle stereo wav files
+        // TODO: handle stereo wav files
         let data: Vec<StereoFrame<S>> = match wav.spec().sample_format {
             SampleFormat::Float => {
                 let data = wav.into_samples::<f32>()
