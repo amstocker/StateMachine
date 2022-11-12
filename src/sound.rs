@@ -10,7 +10,6 @@ use crate::interpolator::LinearInterpolator;
 use crate::output::MonoToStereoFrame;
 use crate::output::OutputConfig;
 use crate::output::OutputSample;
-use crate::output::Frames;
 use crate::output::StereoFrame;
 
 
@@ -29,23 +28,20 @@ pub struct SoundBankMetadata<S> where S: OutputSample {
 }
 
 impl<S> SoundBankMetadata<S> where S: OutputSample {
-    pub fn add_sound(&mut self, sound: Sound<S>) -> Option<SoundMetadata> {
+
+    // TODO: return result
+    pub fn add_sound(&mut self, sound: Sound<S>) {
         for (i, slot) in &mut self.metadata.iter_mut().enumerate() {
             if slot.is_none() {
-                let metadata = SoundMetadata {
-                    name: sound.name.clone(),
-                    length: sound.data.len(),
-                    index: i
-                };
-                *slot = Some(metadata.clone());
+                let metadata = sound.metadata.clone();
+                *slot = Some(metadata);
                 self.producer.push(SoundBankControl::Set {
                     index: i,
                     sound: Some(sound)
                 }).unwrap();
-                return Some(metadata);
+                return;
             }
         }
-        None
     }
 
     pub fn get(&self, index: usize) -> Option<&SoundMetadata> {
@@ -66,7 +62,7 @@ pub struct SoundBank<S> where S: OutputSample {
 impl<S> SoundBank<S> where S: OutputSample {
     pub fn new(sounds: Vec<Sound<S>>) -> (SoundBankMetadata<S>, SoundBank<S>) {
         let (producer, consumer) = RingBuffer::new(MAX_SOUNDS);
-
+        
         let mut sound_bank_metadata = SoundBankMetadata {
             metadata: Default::default(),
             producer
@@ -75,9 +71,9 @@ impl<S> SoundBank<S> where S: OutputSample {
             sounds: Default::default(),
             consumer
         };
-
+        
         for sound in sounds {
-            sound_bank_metadata.add_sound(sound).unwrap();
+            sound_bank_metadata.add_sound(sound);
         }
         sound_bank.update();
 
@@ -95,7 +91,8 @@ impl<S> SoundBank<S> where S: OutputSample {
         }
     }
 
-    pub fn get_frame(&self, index: usize, frame_index: Frames) -> Option<StereoFrame<S>> {
+    // TODO: remove some checks here?
+    pub fn get_frame(&self, index: usize, frame_index: usize) -> Option<StereoFrame<S>> {
         if let Some(sound) = &self.sounds[index] {
             return sound.data.get(frame_index).copied();
         }
@@ -105,26 +102,18 @@ impl<S> SoundBank<S> where S: OutputSample {
 
 
 pub struct Sound<S> where S: OutputSample {
-    pub name: String,
-    pub data: Vec<StereoFrame<S>>
+    pub metadata: SoundMetadata,
+    pub data: Box<[StereoFrame<S>]>
 }
 
 #[derive(Debug, Clone)]
 pub struct SoundMetadata {
     pub name: String,
     pub length: usize,
-    pub index: usize
     // TODO: downsampled waveform
 }
 
 impl<S> Sound<S> where S: OutputSample {
-    pub fn new(name: String, data: Vec<StereoFrame<S>>) -> Self {
-        Sound {
-            name,
-            data
-        }
-    }
-
     pub fn from_wav_file(path: &str, format: &OutputConfig) -> Sound<S> {
         let path = PathBuf::from(path);
         let name = path.file_stem().unwrap()
@@ -134,6 +123,7 @@ impl<S> Sound<S> where S: OutputSample {
         let sample_rate = wav.spec().sample_rate;
 
         // TODO: handle stereo wav files
+        // TODO: better interpolation
         let data: Vec<StereoFrame<S>> = match wav.spec().sample_format {
             SampleFormat::Float => {
                 let data = wav.into_samples::<f32>()
@@ -155,7 +145,14 @@ impl<S> Sound<S> where S: OutputSample {
             }
         };
         
-        Sound::new(name, data)
+        let metadata = SoundMetadata {
+            name,
+            length: data.len(),
+        };
+        Sound {
+            metadata,
+            data: data.into_boxed_slice()
+        }
     }
 
 }

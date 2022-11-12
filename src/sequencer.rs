@@ -4,20 +4,29 @@ use std::sync::atomic::Ordering::SeqCst;
 
 use crate::application::Float;
 use crate::sound::{SoundBank, MAX_SOUNDS};
-use crate::output::{OutputSample, StereoFrame, StereoFrameGenerator};
+use crate::output::{StereoFrame, StereoFrameGenerator};
 
 
-// Sound nodes are on a four-by-four grid
-pub const GRID_SIZE_ROOT: usize = 4;
-pub const GRID_SIZE: usize = GRID_SIZE_ROOT * GRID_SIZE_ROOT;
+pub const MAX_NODES: usize = 8;
 
 pub const INPUT_TRIGGERS_PER_NODE: usize = 4;
 pub const OUTPUT_TRIGGERS_PER_NODE: usize = 4;
 
+#[derive(Default)]
+pub struct Nodes([Node; MAX_NODES]);
 
-pub type Grid = [Node; GRID_SIZE];
-pub struct InputTriggers([TriggerInput; INPUT_TRIGGERS_PER_NODE * GRID_SIZE]);
-pub struct OutputTriggers([TriggerOutput; OUTPUT_TRIGGERS_PER_NODE * GRID_SIZE]);
+#[derive(Default)]
+pub struct InputTriggers([TriggerInput; INPUT_TRIGGERS_PER_NODE * MAX_NODES]);
+
+#[derive(Default)]
+pub struct OutputTriggers([TriggerOutput; OUTPUT_TRIGGERS_PER_NODE * MAX_NODES]);
+
+impl Nodes {
+    #[inline]
+    pub fn get(&self, node_index: usize) -> &Node {
+        &self.0[node_index]
+    }
+}
 
 impl InputTriggers {
     #[inline]
@@ -28,6 +37,12 @@ impl InputTriggers {
     #[inline]
     fn get_cache(&self, node_index: usize, input_number: usize) -> TriggerInputCache {
         self.get(node_index, input_number).cache()
+    }
+
+    fn set(&self, node_index: usize, input_number: usize, cache: TriggerInputCache) {
+        let trigger = self.get(node_index, input_number);
+        trigger.frames_until.store(cache.frames_until, SeqCst);
+        trigger.pending.store(cache.pending, SeqCst);
     }
 }
 
@@ -41,9 +56,16 @@ impl OutputTriggers {
     fn get_cache(&self, node_index: usize, output_number: usize) -> TriggerOutputCache {
         self.get(node_index, output_number).cache()
     }
+
+    fn set(&self, node_index: usize, output_number: usize, cache: TriggerOutputCache) {
+        let trigger = self.get(node_index, output_number);
+        trigger.target_index.store(cache.target_index, SeqCst);
+        trigger.target_input_number.store(cache.target_input_number, SeqCst);
+        trigger.frame_delay.store(cache.frame_delay, SeqCst);
+        trigger.enabled.store(cache.enabled, SeqCst);
+    }
 }
 
-#[derive(Debug)]
 pub struct Node {
     pub sound_index: AtomicUsize,
     pub is_playing: AtomicBool,
@@ -51,8 +73,8 @@ pub struct Node {
     pub enabled: AtomicBool
 }
 
-impl Node {
-    pub fn new() -> Self {
+impl Default for Node {
+    fn default() -> Self {
         Self {
             sound_index: AtomicUsize::new(0),
             is_playing: AtomicBool::new(false),
@@ -62,13 +84,12 @@ impl Node {
     }
 }
 
-#[derive(Clone, Copy)]
-struct NodeInternal {
+#[derive(Default, Clone, Copy)]
+struct NodeInternalMetadata {
     triggered_this_frame: bool,
     triggered_last_frame: bool
 }
 
-#[derive(Debug)]
 pub struct TriggerInput {
     pub frames_until: AtomicUsize,
     pub pending: AtomicBool,
@@ -79,14 +100,16 @@ pub struct TriggerInputCache {
     pending: bool
 }
 
-impl TriggerInput {
-    pub fn new() -> Self {
+impl Default for TriggerInput {
+    fn default() -> Self {
         Self {
             frames_until: AtomicUsize::new(0),
             pending: AtomicBool::new(false),
         }
     }
+}
 
+impl TriggerInput {
     fn cache(&self) -> TriggerInputCache {
         TriggerInputCache {
             frames_until: self.frames_until.load(SeqCst),
@@ -95,7 +118,6 @@ impl TriggerInput {
     }
 }
 
-#[derive(Debug)]
 pub struct TriggerOutput {
     pub target_index: AtomicUsize,
     pub target_input_number: AtomicUsize,
@@ -110,8 +132,8 @@ struct TriggerOutputCache {
     enabled: bool
 }
 
-impl TriggerOutput {
-    pub fn new() -> Self {
+impl Default for TriggerOutput {
+    fn default() -> Self {
         Self {
             target_index: AtomicUsize::new(0),
             target_input_number: AtomicUsize::new(0),
@@ -119,7 +141,9 @@ impl TriggerOutput {
             enabled: AtomicBool::new(false)
         }
     }
+}
 
+impl TriggerOutput {
     fn cache(&self) -> TriggerOutputCache {
         TriggerOutputCache { 
             target_index: self.target_index.load(SeqCst),
@@ -140,7 +164,7 @@ pub enum SequencerControlMessage {
 }
 
 pub struct SequencerParameters {
-    pub nodes: Arc<Grid>,
+    pub nodes: Arc<Nodes>,
     pub input_triggers: Arc<InputTriggers>,
     pub output_triggers: Arc<OutputTriggers>,
 }
@@ -150,27 +174,27 @@ impl SequencerParameters {
         use SequencerControlMessage::*;
         match message {
             EnableSound(index) => {
-                let node = self.nodes.get(index).unwrap();
+                let node = self.nodes.get(index);
                 node.enabled.store(true, SeqCst);
             },
             DisableSound(index) => {
-                let node = self.nodes.get(index).unwrap();
+                let node = self.nodes.get(index);
                 node.enabled.store(false, SeqCst);
             },
             PlaySound(index) => {
-                let node = self.nodes.get(index).unwrap();
+                let node = self.nodes.get(index);
                 node.current_frame_index.store(0, SeqCst);
                 node.is_playing.store(true, SeqCst);
             },
             IncrSoundIndex(index) => {
-                let node = self.nodes.get(index).unwrap();
+                let node = self.nodes.get(index);
                 let sound_index = node.sound_index.load(SeqCst);
                 if sound_index < MAX_SOUNDS {
                     node.sound_index.fetch_add(1, SeqCst);
                 }
             },
             DecrSoundIndex(index) => {
-                let node = self.nodes.get(index).unwrap();
+                let node = self.nodes.get(index);
                 let sound_index = node.sound_index.load(SeqCst);
                 if sound_index > 0 {
                     node.sound_index.fetch_sub(1, SeqCst);
@@ -182,68 +206,59 @@ impl SequencerParameters {
 
 pub struct Sequencer {
     sound_bank: SoundBank<Float>,
-    nodes: Arc<Grid>,
-    nodes_internal: [NodeInternal; GRID_SIZE],
+    nodes: Arc<Nodes>,
     input_triggers: Arc<InputTriggers>,
     output_triggers: Arc<OutputTriggers>,
+    nodes_internal: [NodeInternalMetadata; MAX_NODES],
     frames_processed: u64
 }
 
 impl Sequencer {
     pub fn new(sound_bank: SoundBank<Float>) -> (SequencerParameters, Sequencer) {
-        let nodes: Arc<Grid> = Arc::new(
-            (0..GRID_SIZE).map(|_| Node::new())
-                .collect::<Vec<Node>>().try_into().unwrap()
-        );
-        let input_triggers: Arc<InputTriggers> = Arc::new(InputTriggers(
-            (0..INPUT_TRIGGERS_PER_NODE * GRID_SIZE).map(|_| TriggerInput::new())
-                .collect::<Vec<TriggerInput>>().try_into().unwrap()
-        ));
-        let output_triggers: Arc<OutputTriggers> = Arc::new(OutputTriggers(
-            (0..OUTPUT_TRIGGERS_PER_NODE * GRID_SIZE).map(|_| TriggerOutput::new())
-                .collect::<Vec<TriggerOutput>>().try_into().unwrap()
-        ));
+        let nodes = Arc::<Nodes>::default();
+        let input_triggers = Arc::<InputTriggers>::default();
+        let output_triggers = Arc::<OutputTriggers>::default();
 
-        let controller = SequencerParameters {
+        let sequencer_parameters = SequencerParameters {
             nodes: nodes.clone(),
             input_triggers: input_triggers.clone(),
             output_triggers: output_triggers.clone()
         };
-
-        let node_internal_init = NodeInternal {
-            triggered_last_frame: false,
-            triggered_this_frame: false
-        };
         let sequencer = Sequencer {
             sound_bank,
             nodes,
-            nodes_internal: [node_internal_init; GRID_SIZE],
             input_triggers,
             output_triggers,
+            nodes_internal: Default::default(),
             frames_processed: 0
         };
 
-        (controller, sequencer)
+        (sequencer_parameters, sequencer)
     }
 
     pub fn update_single_frame(&mut self) {
-        for i in 0..GRID_SIZE {
-            let node = &self.nodes[i];
+        for i in 0..MAX_NODES {
+            let node = self.nodes.get(i);
             let mut node_internal = &mut self.nodes_internal[i];
             if node.enabled.load(SeqCst) && node_internal.triggered_last_frame {
                 for j in 0..OUTPUT_TRIGGERS_PER_NODE {
                     let trigger = &self.output_triggers.get_cache(i, j);
                     if trigger.enabled {
-                        let target = &self.input_triggers.get(trigger.target_index, trigger.target_input_number);
-                        target.frames_until.store(trigger.frame_delay - 1, SeqCst);
-                        target.pending.store(true, SeqCst);
+                        self.input_triggers.set(
+                            trigger.target_index,
+                            trigger.target_input_number,
+                            TriggerInputCache { 
+                                frames_until: trigger.frame_delay - 1,
+                                pending: true
+                            }
+                        );
                     }
                 }
                 node_internal.triggered_last_frame = false;
             }
         }
-        for i in 0..GRID_SIZE {
-            let node = &self.nodes[i];
+        for i in 0..MAX_NODES {
+            let node = self.nodes.get(i);
             let mut node_internal = &mut self.nodes_internal[i];
             if node.enabled.load(SeqCst) {
                 for j in 0..INPUT_TRIGGERS_PER_NODE {
@@ -266,9 +281,8 @@ impl Sequencer {
         self.update_single_frame();
         
         let mut out_frame = StereoFrame::zero();
-        
-        for i in 0..GRID_SIZE {
-            let node = &self.nodes[i];
+        for i in 0..MAX_NODES {
+            let node = self.nodes.get(i);
             let mut node_internal = &mut self.nodes_internal[i];
             if node.enabled.load(SeqCst) {
                 if node_internal.triggered_this_frame {
@@ -296,13 +310,5 @@ impl Sequencer {
 impl StereoFrameGenerator<Float> for Sequencer {
     fn next_frame(&mut self) -> StereoFrame<Float> {
         self.output_single_frame()
-    }
-}
-
-impl Iterator for Sequencer {
-    type Item = StereoFrame<Float>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        Some(self.next_frame())
     }
 }

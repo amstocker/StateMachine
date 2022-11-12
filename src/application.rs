@@ -4,15 +4,12 @@ use iced::{executor, Theme, Command};
 use iced::widget::{Column, Text, Row, Button, Container, Space};
 use iced::{Application, Element, Length};
 
-use crate::config::Config;
-use crate::engine::Engine;
-use crate::sequencer::Node;
-use crate::sound::*;
-use crate::fonts::*;
-
 use crate::{
-    sequencer::{Sequencer, SequencerParameters, SequencerControlMessage, GRID_SIZE_ROOT},
-    sound::{SoundBankMetadata},
+    config::Config,
+    output::Output,
+    sequencer::{Node, Sequencer, SequencerParameters, SequencerControlMessage, MAX_NODES},
+    sound::*,
+    fonts::*
 };
 
 
@@ -26,7 +23,7 @@ pub enum Message {
 pub struct Torsion {
     sound_bank_metadata: SoundBankMetadata<Float>,
     sequencer_params: SequencerParameters,
-    engine: Engine
+    output: Output
 }
 
 impl Torsion {
@@ -104,14 +101,14 @@ impl Application for Torsion {
     
         let (sequencer_params, sequencer) = Sequencer::new(sound_bank);
 
-        let mut engine = Engine::new(config.output);
+        let mut output = Output::new(config.output);
         
-        engine.run(sequencer);
+        output.start(sequencer);
         (
             Self { 
                 sound_bank_metadata,
                 sequencer_params,
-                engine
+                output
             },
             Command::none()
         )
@@ -129,16 +126,11 @@ impl Application for Torsion {
     }
 
     fn view(&self) -> Element<Message> {
-        let mut column = Column::new();
-        for j in 0..GRID_SIZE_ROOT {
-            let mut row = Row::new();
-            for i in 0..GRID_SIZE_ROOT {
-                let index = j * GRID_SIZE_ROOT + i;
-                let node = self.sequencer_params.nodes.get(index).unwrap();
-                row = row.push(self.node_view(index, node));
-            }
-            column = column.push(row);
+        let mut row = Row::new();
+        for index in 0..MAX_NODES {
+            let node = self.sequencer_params.nodes.get(index);
+            row = row.push(self.node_view(index, node));
         }
-        Container::new(column).into()
+        Container::new(row).into()
     }
 }

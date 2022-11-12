@@ -6,7 +6,6 @@ mod interpolator;
 mod sequencer;
 mod output;
 mod config;
-mod engine;
 
 use iced::{Application, Settings};
 use sound::Sound;
