@@ -20,13 +20,13 @@ pub enum Message {
     Sequencer(SequencerControlMessage)
 }
 
-pub struct Torsion {
+pub struct Instrument {
     sound_bank_metadata: SoundBankMetadata<Float>,
-    sequencer_params: SequencerParameters,
+    sequencer_parameters: SequencerParameters,
     output: Output
 }
 
-impl Torsion {
+impl Instrument {
     pub fn node_view<'a>(&'a self, index: usize, node: &'a Node) -> Element<'a, Message> {
         use SequencerControlMessage::*;
 
@@ -90,37 +90,41 @@ impl Torsion {
     }
 }
 
-impl Application for Torsion {
+impl Application for Instrument {
     type Executor = executor::Default;
     type Message = Message;
     type Theme = Theme;
     type Flags = Config;
 
+    fn title(&self) -> String {
+        String::from("Instrument")
+    }
+
     fn new(config: Config) -> (Self, Command<Message>) {
-        let (sound_bank_metadata, sound_bank) = SoundBank::new(config.sounds);
-    
-        let (sequencer_params, sequencer) = Sequencer::new(sound_bank);
+        let (
+            sound_bank_metadata,
+            sound_bank
+        ) = SoundBank::new(config.sounds);
+        let (
+            sequencer_parameters,
+            sequencer
+        ) = Sequencer::new(sound_bank);
 
         let mut output = Output::new(config.output);
-        
         output.start(sequencer);
         (
             Self { 
                 sound_bank_metadata,
-                sequencer_params,
+                sequencer_parameters,
                 output
             },
             Command::none()
         )
     }
 
-    fn title(&self) -> String {
-        String::from("State Machine")
-    }
-
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
-            Message::Sequencer(control) => self.sequencer_params.handle_sequencer_control(control)
+            Message::Sequencer(control) => self.sequencer_parameters.handle_message(control)
         }
         Command::none()
     }
@@ -128,7 +132,7 @@ impl Application for Torsion {
     fn view(&self) -> Element<Message> {
         let mut row = Row::new();
         for index in 0..MAX_NODES {
-            let node = self.sequencer_params.nodes.get(index);
+            let node = self.sequencer_parameters.nodes.get(index);
             row = row.push(self.node_view(index, node));
         }
         Container::new(row).into()

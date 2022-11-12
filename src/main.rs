@@ -10,7 +10,7 @@ mod config;
 use iced::{Application, Settings};
 use sound::Sound;
 
-use crate::application::Torsion;
+use crate::application::Instrument;
 use crate::config::Config;
 
 
@@ -26,7 +26,7 @@ fn main() -> iced::Result {
         config.sounds.push(Sound::from_wav_file(path, &config.output));
     }
 
-    Torsion::run(Settings {
+    Instrument::run(Settings {
         flags: config,
         ..Settings::default()
     })

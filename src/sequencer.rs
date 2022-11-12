@@ -163,6 +163,7 @@ pub enum SequencerControlMessage {
     DecrSoundIndex(usize)
 }
 
+#[derive(Clone)]
 pub struct SequencerParameters {
     pub nodes: Arc<Nodes>,
     pub input_triggers: Arc<InputTriggers>,
@@ -170,7 +171,7 @@ pub struct SequencerParameters {
 }
 
 impl SequencerParameters {
-    pub fn handle_sequencer_control(&self, message: SequencerControlMessage) {
+    pub fn handle_message(&self, message: SequencerControlMessage) {
         use SequencerControlMessage::*;
         match message {
             EnableSound(index) => {
