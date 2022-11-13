@@ -66,6 +66,7 @@ impl OutputTriggers {
     }
 }
 
+#[derive(Default)]
 pub struct Node {
     pub sound_index: AtomicUsize,
     pub is_playing: AtomicBool,
@@ -73,15 +74,10 @@ pub struct Node {
     pub enabled: AtomicBool
 }
 
-impl Default for Node {
-    fn default() -> Self {
-        Self {
-            sound_index: AtomicUsize::new(0),
-            is_playing: AtomicBool::new(false),
-            current_frame_index: AtomicUsize::new(0),
-            enabled: AtomicBool::new(false)
-        }
-    }
+#[derive(Default)]
+struct Playhead {
+    current_frame_index: AtomicUsize,
+    is_playing: AtomicBool
 }
 
 #[derive(Default, Clone, Copy)]
@@ -90,6 +86,7 @@ struct NodeInternalMetadata {
     triggered_last_frame: bool
 }
 
+#[derive(Default)]
 pub struct TriggerInput {
     pub frames_until: AtomicUsize,
     pub pending: AtomicBool,
@@ -98,15 +95,6 @@ pub struct TriggerInput {
 pub struct TriggerInputCache {
     frames_until: usize,
     pending: bool
-}
-
-impl Default for TriggerInput {
-    fn default() -> Self {
-        Self {
-            frames_until: AtomicUsize::new(0),
-            pending: AtomicBool::new(false),
-        }
-    }
 }
 
 impl TriggerInput {
@@ -118,6 +106,7 @@ impl TriggerInput {
     }
 }
 
+#[derive(Default)]
 pub struct TriggerOutput {
     pub target_index: AtomicUsize,
     pub target_input_number: AtomicUsize,
@@ -130,17 +119,6 @@ struct TriggerOutputCache {
     target_input_number: usize,
     frame_delay: usize,
     enabled: bool
-}
-
-impl Default for TriggerOutput {
-    fn default() -> Self {
-        Self {
-            target_index: AtomicUsize::new(0),
-            target_input_number: AtomicUsize::new(0),
-            frame_delay: AtomicUsize::new(0),
-            enabled: AtomicBool::new(false)
-        }
-    }
 }
 
 impl TriggerOutput {
@@ -158,12 +136,12 @@ impl TriggerOutput {
 pub enum SequencerControlMessage {
     EnableSound(usize),
     DisableSound(usize),
-    PlaySound(usize),
+    PlaySoundOnce(usize),
     IncrSoundIndex(usize),
     DecrSoundIndex(usize)
 }
 
-#[derive(Clone)]
+#[derive(Default, Clone)]
 pub struct SequencerParameters {
     pub nodes: Arc<Nodes>,
     pub input_triggers: Arc<InputTriggers>,
@@ -182,7 +160,7 @@ impl SequencerParameters {
                 let node = self.nodes.get(index);
                 node.enabled.store(false, SeqCst);
             },
-            PlaySound(index) => {
+            PlaySoundOnce(index) => {
                 let node = self.nodes.get(index);
                 node.current_frame_index.store(0, SeqCst);
                 node.is_playing.store(true, SeqCst);
@@ -216,20 +194,12 @@ pub struct Sequencer {
 
 impl Sequencer {
     pub fn new(sound_bank: SoundBank<Float>) -> (SequencerParameters, Sequencer) {
-        let nodes = Arc::<Nodes>::default();
-        let input_triggers = Arc::<InputTriggers>::default();
-        let output_triggers = Arc::<OutputTriggers>::default();
-
-        let sequencer_parameters = SequencerParameters {
-            nodes: nodes.clone(),
-            input_triggers: input_triggers.clone(),
-            output_triggers: output_triggers.clone()
-        };
+        let sequencer_parameters = SequencerParameters::default();
         let sequencer = Sequencer {
             sound_bank,
-            nodes,
-            input_triggers,
-            output_triggers,
+            nodes: sequencer_parameters.nodes.clone(),
+            input_triggers: sequencer_parameters.input_triggers.clone(),
+            output_triggers: sequencer_parameters.output_triggers.clone(),
             nodes_internal: Default::default(),
             frames_processed: 0
         };

@@ -27,7 +27,7 @@ pub struct Instrument {
 }
 
 impl Instrument {
-    pub fn node_view<'a>(&'a self, index: usize, node: &'a Node) -> Element<'a, Message> {
+    pub fn node_view<'a>(&'a self, node_index: usize, node: &'a Node) -> Element<'a, Message> {
         use SequencerControlMessage::*;
 
         let sound_index = node.sound_index.load(SeqCst);
@@ -46,13 +46,13 @@ impl Instrument {
             Button::new(
                 Text::new("-")
                     .font(JETBRAINS_MONO)
-            ).on_press(Message::Sequencer(DecrSoundIndex(index)))
+            ).on_press(Message::Sequencer(DecrSoundIndex(node_index)))
         );
         sound_info = sound_info.push(
             Button::new(
                 Text::new("+")
                     .font(JETBRAINS_MONO)
-            ).on_press(Message::Sequencer(IncrSoundIndex(index)))
+            ).on_press(Message::Sequencer(IncrSoundIndex(node_index)))
         );
         sound_info = sound_info.push(
             Space::with_width(Length::Units(3))
@@ -61,7 +61,7 @@ impl Instrument {
             Button::new(
                 Text::new("Play")
                     .font(JETBRAINS_MONO)
-            ).on_press(Message::Sequencer(PlaySound(index)))
+            ).on_press(Message::Sequencer(PlaySoundOnce(node_index)))
         );
         column = column.push(sound_info);
         column = column.push(Space::with_height(Length::Units(3)));
@@ -73,12 +73,12 @@ impl Instrument {
                 Button::new(
                     Text::new("Disable")
                         .font(JETBRAINS_MONO)
-                ).on_press(Message::Sequencer(DisableSound(index)))
+                ).on_press(Message::Sequencer(DisableSound(node_index)))
             } else {
                 Button::new(
                     Text::new("Enable")
                         .font(JETBRAINS_MONO)
-                ).on_press(Message::Sequencer(EnableSound(index)))
+                ).on_press(Message::Sequencer(EnableSound(node_index)))
             }
         );
         column = column.push(enable);
