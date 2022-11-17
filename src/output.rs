@@ -26,7 +26,6 @@ impl Default for OutputConfig {
         let host = cpal::default_host();
         let device = host.default_output_device().unwrap();
         let supported_config = device.default_output_config().unwrap();
-        
         Self { 
             device,
             channels: supported_config.channels() as usize,
@@ -46,9 +45,7 @@ pub trait OutputSample:
     + ToSample<i32> + FromSample<i32>
     + ToSample<Float> + FromSample<Float>
     + std::ops::AddAssign
-{
-    // Trait alias
-}
+    {}
 
 impl<S> OutputSample for S where S:
     Sample + cpal::Sample
@@ -58,9 +55,7 @@ impl<S> OutputSample for S where S:
     + ToSample<i32> + FromSample<i32>
     + ToSample<Float> + FromSample<Float>
     + std::ops::AddAssign
-{
-    // Trait alias
-}
+    {}
 
 pub enum StereoChannel {
     Left,

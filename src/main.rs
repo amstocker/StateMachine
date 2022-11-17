@@ -6,15 +6,13 @@ mod interpolator;
 mod sequencer;
 mod output;
 mod config;
+mod grid;
 
-use iced::{Application, Settings};
-use sound::Sound;
-
-use crate::application::Instrument;
+use crate::sound::Sound;
+use crate::application::run;
 use crate::config::Config;
 
-
-fn main() -> iced::Result {
+fn main() {
     let mut config = Config::default();
 
     let files = [
@@ -26,8 +24,5 @@ fn main() -> iced::Result {
         config.sounds.push(Sound::from_wav_file(path, &config.output));
     }
 
-    Instrument::run(Settings {
-        flags: config,
-        ..Settings::default()
-    })
+    run();
 }
