@@ -7,24 +7,17 @@ edition = "2021"
 
 [dependencies]
 assert_no_alloc = "1.1.2"
+bytemuck = "1.12.3"
 cpal = "0.14.1"
 dasp = "0.11.0"
+env_logger = "0.9.3"
 hound = "3.5.0"
+pollster = "0.2.5"
 rfd = "0.10.0"
 rtrb = "0.2.2"
-bevy = "0.9"
-ringbuf = "0.3.1"
+wgpu = "0.14.0"
+wgpu_glyph = "0.18.0"
+winit = "0.27.5"
 
 [profile.release]
-opt-level = 3
-
-
-### Bevy
-
-# Enable a small amount of optimization in debug mode
-[profile.dev]
-opt-level = 1
-
-# Enable high optimizations for dependencies (incl. Bevy), but not for our code:
-[profile.dev.package."*"]
 opt-level = 3

@@ -1,5 +1,3 @@
-
-
 #[derive(Debug, Clone, Copy)]
 pub enum SequencerControlMessage {
     EnableSound(usize),
