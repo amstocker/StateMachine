@@ -1,19 +1,22 @@
-use std::time::Instant;
+use winit::event_loop::EventLoopProxy;
 
-use crate::application::{Float, ApplicationEvent};
-use crate::sound::{SoundBank, MAX_SOUNDS};
-use crate::output::{StereoFrame, StereoFrameGenerator};
+use crate::application::ApplicationEvent;
+use crate::sound::{SoundBank, MAX_SOUNDS, StereoFrame, StereoFrameGenerator, Float};
 
 mod node;
 mod control_message;
 pub use node::*;
 pub use control_message::*;
-use winit::event_loop::EventLoopProxy;
 
 pub const MAX_NODES: usize = 8;
 
 // Note: implement copy for array items, and use generic const parameters!
+// (revisiting this note... )
 
+
+pub struct SequencerController {
+
+}
 
 pub struct Sequencer {
     event_loop_proxy: EventLoopProxy<ApplicationEvent>,

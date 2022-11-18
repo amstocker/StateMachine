@@ -1,10 +1,7 @@
 mod application;
 mod fonts;
-mod utils;
 mod sound;
-mod interpolator;
 mod sequencer;
-mod output;
 mod config;
 mod grid;
 

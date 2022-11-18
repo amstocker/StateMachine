@@ -1,8 +1,4 @@
-use crate::{
-    output::OutputConfig,
-    sound::Sound,
-    application::Float
-};
+use crate::sound::{Sound, OutputConfig, Float};
 
 
 #[derive(Default)]

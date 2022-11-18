@@ -1,11 +1,11 @@
 use std::fmt::Debug;
 
 use dasp::{Sample, sample::{FromSample, ToSample}};
-use cpal::{Device, Stream, StreamConfig, SampleFormat};
+use cpal::{Stream, StreamConfig, SampleFormat};
 use cpal::traits::{HostTrait, DeviceTrait, StreamTrait};
 use assert_no_alloc::*;
 
-use crate::application::Float;
+use crate::sound::Float;
 
 #[cfg(debug_assertions)]
 #[global_allocator]
@@ -13,7 +13,6 @@ static A: AllocDisabler = AllocDisabler;
 
 
 pub struct OutputConfig {
-    //pub device: Device,
     pub channels: usize,
     pub output_channels: (usize, usize),
     pub sample_rate: usize,
@@ -26,14 +25,12 @@ impl Default for OutputConfig {
         let host = cpal::default_host();
         let device = host.default_output_device().unwrap();
         let supported_config = device.default_output_config().unwrap();
-        
         Self { 
-            //device,
             channels: supported_config.channels() as usize,
             output_channels: (0, 1),
             sample_rate: supported_config.sample_rate().0 as usize,
             sample_format: supported_config.sample_format(),
-            stream_config: supported_config.into()
+            stream_config: supported_config.config()
         }
     }
 }

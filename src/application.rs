@@ -8,10 +8,11 @@ use winit::{
 use wgpu_glyph::{GlyphBrushBuilder, Section, Text, GlyphBrush};
 use bytemuck::{cast_slice, Pod, Zeroable};
 
-use crate::{fonts, sequencer::Sequencer, config::Config, output::Output};
+use crate::{fonts, sequencer::Sequencer, config::Config, sound::Output};
 
 
-pub type Float = f32;
+const TITLE: &str = "state_machine";
+
 
 const VERTICES: &[Vertex] = &[
     Vertex { position: [0.0, 0.5, 0.0], color: [1.0, 0.0, 0.0] },
@@ -275,7 +276,7 @@ impl State {
                 self.mouse_position.set((x as f32, y as f32));
                 self.queue.write_buffer(&self.mouse_position_buffer, 0, cast_slice(&[self.mouse_position]));
                 true
-            }
+            },
             _ => false,
         }
     }
@@ -350,7 +351,9 @@ pub fn run() {
     env_logger::init();
 
     let event_loop: EventLoop<ApplicationEvent> = EventLoopBuilder::with_user_event().build();
-    let window = WindowBuilder::new().build(&event_loop).unwrap();
+    let window = WindowBuilder::new()
+        .with_title(TITLE)
+        .build(&event_loop).unwrap();
 
     let config = Config::default();
     let sequencer = Sequencer::new(event_loop.create_proxy());

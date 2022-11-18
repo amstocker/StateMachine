@@ -1,7 +1,6 @@
 use dasp::Sample;
 
-use crate::output::OutputSample;
-use crate::application::Float;
+use crate::sound::{OutputSample, Float};
 
 
 pub struct LinearInterpolator<I> where I: Iterator {
