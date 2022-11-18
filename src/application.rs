@@ -8,7 +8,7 @@ use winit::{
 use wgpu_glyph::{GlyphBrushBuilder, Section, Text, GlyphBrush};
 use bytemuck::{cast_slice, Pod, Zeroable};
 
-use crate::{fonts, sequencer::Sequencer, config::Config, sound::Output};
+use crate::{ui, sequencer::Sequencer, config::Config, sound::Output};
 
 
 const TITLE: &str = "state_machine";
@@ -183,7 +183,7 @@ impl State {
         });
 
         // Rendering Pipeline Init
-        let shader = device.create_shader_module(include_wgsl!("shader.wgsl"));
+        let shader = device.create_shader_module(include_wgsl!("ui/shader.wgsl"));
 
         let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Render Pipeline Layout"),
@@ -229,7 +229,7 @@ impl State {
         // WGPU Glyph Init
         let staging_belt = wgpu::util::StagingBelt::new(1024);
 
-        let font = fonts::JETBRAINS_MONO_LIGHT_ITALIC.into();
+        let font = ui::fonts::JETBRAINS_MONO_LIGHT_ITALIC.into();
         let glyph_brush = GlyphBrushBuilder::using_font(font).build(&device, format);
         
 
@@ -347,7 +347,7 @@ impl State {
 }
 
 
-pub fn run() {
+pub fn run(config: Config) {
     env_logger::init();
 
     let event_loop: EventLoop<ApplicationEvent> = EventLoopBuilder::with_user_event().build();
@@ -355,7 +355,6 @@ pub fn run() {
         .with_title(TITLE)
         .build(&event_loop).unwrap();
 
-    let config = Config::default();
     let sequencer = Sequencer::new(event_loop.create_proxy());
     let mut output = Output::new(config.output);
     output.start(sequencer);

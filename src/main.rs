@@ -1,13 +1,13 @@
 mod application;
-mod fonts;
 mod sound;
 mod sequencer;
+mod ui;
 mod config;
-mod grid;
 
-use crate::sound::Sound;
 use crate::application::run;
 use crate::config::Config;
+use crate::sound::Sound;
+
 
 fn main() {
     let mut config = Config::default();
@@ -21,5 +21,5 @@ fn main() {
         config.sounds.push(Sound::from_wav_file(path, &config.output));
     }
 
-    run();
+    run(config);
 }
