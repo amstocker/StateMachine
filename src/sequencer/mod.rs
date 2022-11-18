@@ -1,6 +1,9 @@
+use std::sync::Arc;
 use std::time::Instant;
 
-use crate::application::{Float, ApplicationEvent};
+use rtrb::{RingBuffer, Consumer, Producer};
+
+use crate::application::{Float};
 use crate::sound::{SoundBank, MAX_SOUNDS};
 use crate::output::{StereoFrame, StereoFrameGenerator};
 
@@ -8,24 +11,39 @@ mod node;
 mod control_message;
 pub use node::*;
 pub use control_message::*;
-use winit::event_loop::EventLoopProxy;
 
 pub const MAX_NODES: usize = 8;
 
 // Note: implement copy for array items, and use generic const parameters!
 
+pub struct SequencerController {
+    producer: Producer<SequencerControlMessage>
+}
+
+impl SequencerController {
+    pub fn play_sound_once(&mut self, sound_index: usize) {
+        self.producer.push(SequencerControlMessage::PlaySoundOnce(sound_index)).unwrap();
+    }
+}
+
 
 pub struct Sequencer {
-    event_loop_proxy: EventLoopProxy<ApplicationEvent>,
+    consumer: Consumer<SequencerControlMessage>,
     frames_processed: u64
 }
 
 impl Sequencer {
-    pub fn new(event_loop_proxy: EventLoopProxy<ApplicationEvent>) -> Self {
-        Self {
-            event_loop_proxy,
-            frames_processed: 0
-        }
+    pub fn new() -> (SequencerController, Self) {
+        let (producer, consumer) = RingBuffer::new(1024);
+        (
+            SequencerController {
+                producer
+            },
+            Self {
+                consumer,
+                frames_processed: 0
+            }
+        )
     }
 }
 

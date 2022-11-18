@@ -1,15 +1,6 @@
-use wgpu_glyph::ab_glyph::FontArc;
-
-
 pub struct Font {
     name: &'static str,
     bytes: &'static [u8]
-}
-
-impl Into<FontArc> for Font {
-    fn into(self) -> FontArc {
-        FontArc::try_from_slice(self.bytes).unwrap()
-    } 
 }
 
 pub const JETBRAINS_MONO: Font = Font {

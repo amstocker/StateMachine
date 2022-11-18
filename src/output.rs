@@ -13,7 +13,7 @@ static A: AllocDisabler = AllocDisabler;
 
 
 pub struct OutputConfig {
-    pub device: Device,
+    //pub device: Device,
     pub channels: usize,
     pub output_channels: (usize, usize),
     pub sample_rate: usize,
@@ -27,7 +27,7 @@ impl Default for OutputConfig {
         let device = host.default_output_device().unwrap();
         let supported_config = device.default_output_config().unwrap();
         Self { 
-            device,
+            //device,
             channels: supported_config.channels() as usize,
             output_channels: (0, 1),
             sample_rate: supported_config.sample_rate().0 as usize,
@@ -153,10 +153,13 @@ impl Output {
         &self,
         mut frame_generator: T
     ) -> Stream {
+        let host = cpal::default_host();
+        let device = host.default_output_device().unwrap();
+        
         let channels = self.output_config.channels;
         let output_channels = self.output_config.output_channels;
 
-        self.output_config.device.build_output_stream(
+        device.build_output_stream(
             &self.output_config.stream_config,
             move |data: &mut [S], _| {
                 assert_no_alloc(|| {

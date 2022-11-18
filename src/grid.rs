@@ -78,6 +78,7 @@ impl Region {
             && y <= bottom_right.y
     }
 
+    // Doesn't actually work...
     pub fn intersects(&self, other: Region) -> bool {
         let bottom_right = self.bottom_right();
         let bottom_right_other = other.bottom_right();
@@ -90,23 +91,21 @@ impl Region {
     }
 }
 
-
-pub enum Widget {
-    Sound
+pub trait OccupiesGridRegion {
+    fn region(&self) -> Region;
 }
 
-pub struct Item {
+pub struct Item<T> where T: OccupiesGridRegion {
     id: ItemID,
-    widget: Widget,
-    size: Size
+    widget: T,
 }
 
-struct Grid {
+struct Grid<T> where T: OccupiesGridRegion {
     occupation_map: [ItemID; WIDTH * HEIGHT],
-    items: HashMap<ItemID, Item>
+    items: HashMap<ItemID, Item<T>>
 }
 
-impl Grid {
+impl<T> Grid<T> where T: OccupiesGridRegion {
     pub fn new() -> Self {
         Self {
             occupation_map: [NoItem; WIDTH * HEIGHT],
@@ -126,7 +125,7 @@ impl Grid {
         false
     }
 
-    pub fn get_item(&self, coordinate: Coordinate) -> Option<&Item> {
+    pub fn get_item(&self, coordinate: Coordinate) -> Option<&Item<T>> {
         let id = self.occupation_map[coordinate.to_index()];
         if id != NoItem {
             self.items.get(&id)
@@ -144,15 +143,12 @@ impl Grid {
         } 
     }
 
-    pub fn add_item(&mut self, top_left: Coordinate, item: Item) -> Result<ItemID, GridError> {
-        if top_left.x + item.size.width >= WIDTH || top_left.y + item.size.height >= HEIGHT {
+    pub fn add_item(&mut self, top_left: Coordinate, item: Item<T>) -> Result<ItemID, GridError> {
+        let region = item.widget.region();
+        if top_left.x + region.size.width >= WIDTH || top_left.y + region.size.height >= HEIGHT {
             return Err(GridError::OutOfBounds);
         }
 
-        let region = Region {
-            top_left,
-            size: item.size
-        };
         if self.is_occupied_in_region(region) {
             return Err(GridError::Occupied);
         }
@@ -173,3 +169,4 @@ pub enum GridError {
     Occupied,
     OutOfBounds
 }
+
