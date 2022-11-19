@@ -12,7 +12,8 @@ pub use control_message::*;
 pub const MAX_NODES: usize = 8;
 
 // Note: implement copy for array items, and use generic const parameters!
-// (revisiting this note... )
+// (revisiting this note... it means that triggers etc should impl Copy,
+//  so that N can be a generic const and array init is easier)
 
 
 pub struct SequencerController {
@@ -27,15 +28,20 @@ pub struct Sequencer {
 
 impl Sequencer {
     pub fn new(event_sender: EventSender<InstrumentEvent>) -> (SequencerController, Self) {
-        let (producer, consumer) = RingBuffer::new(1024);
+        let (
+            control_message_sender,
+            control_message_receiver
+        ) = RingBuffer::new(1024);
+        
         let sequencer_controller = SequencerController {
-            control_message_sender: producer
+            control_message_sender
         };
         let sequencer = Self {
-            control_message_receiver: consumer,
+            control_message_receiver,
             event_sender,
             frames_processed: 0
         };
+        
         (sequencer_controller, sequencer)
     }
 }

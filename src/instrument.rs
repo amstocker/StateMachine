@@ -1,7 +1,8 @@
+use wgpu::{Device, RenderPass};
 use winit::window::{Window, CursorIcon};
-use winit::event::{WindowEvent, MouseButton};
+use winit::event::{WindowEvent, MouseButton, ElementState};
 
-use crate::ui::{Application, EventSender, State, MousePosition};
+use crate::ui::{Application, EventSender, State};
 use crate::config::InstrumentConfig;
 use crate::sequencer::{SequencerController, Sequencer};
 use crate::sound::Output;
@@ -20,8 +21,16 @@ impl Application for Instrument {
     type Event = InstrumentEvent;
     type Config = InstrumentConfig;
 
-    fn init(config: InstrumentConfig, event_sender: EventSender<InstrumentEvent>) -> Instrument {
-        let (sequencer_controller, sequencer) = Sequencer::new(event_sender);
+    fn init(
+        config: InstrumentConfig,
+        event_sender: EventSender<InstrumentEvent>,
+        device: &Device
+    ) -> Instrument {
+        let (
+            sequencer_controller,
+            sequencer
+        ) = Sequencer::new(event_sender);
+        
         let mut output = Output::new(config.output);
         output.start(sequencer);
 
@@ -42,8 +51,15 @@ impl Application for Instrument {
                     a: 1.0,
                 };
             },
-            WindowEvent::MouseInput { button: MouseButton::Left, .. } => {
-                window.set_cursor_icon(CursorIcon::Grabbing);
+            WindowEvent::MouseInput { button: MouseButton::Left, state, .. } => {
+                match state {
+                    ElementState::Pressed => {
+                        window.set_cursor_icon(CursorIcon::Grabbing);
+                    },
+                    ElementState::Released => {
+                        window.set_cursor_icon(CursorIcon::Default);
+                    }
+                }
             },
             _ => {}
         };
@@ -58,7 +74,7 @@ impl Application for Instrument {
     fn update(&mut self) {
     }
 
-    fn draw(&self) {
+    fn draw(&self, render_pass: &mut RenderPass) {
     
     }
 }

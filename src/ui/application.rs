@@ -86,7 +86,7 @@ pub struct State {
 }
 
 impl State {
-    async fn new(window: &Window) -> Self {
+    async fn init(window: &Window) -> Self {
         use wgpu::util::DeviceExt;
 
         let size = window.inner_size();
@@ -122,6 +122,11 @@ impl State {
             alpha_mode: wgpu::CompositeAlphaMode::Auto,
         };
         surface.configure(&device, &config);
+
+
+        /*
+         * Below here can be implemented in the Application impl
+         */
 
         // Vertex Buffer
         let vertex_buffer = device.create_buffer_init(
@@ -279,7 +284,7 @@ impl State {
         }
     }
     
-    fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+    fn render<T: Application>(&mut self, app: &T) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
 
@@ -300,6 +305,8 @@ impl State {
                 })],
                 depth_stencil_attachment: None,
             });
+
+            app.draw(&mut render_pass);
 
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.mouse_position_bind_group, &[]);
@@ -351,21 +358,25 @@ pub trait ApplicationConfig {
 }
 
 
-pub trait Application {
+pub trait Application: 'static + Sized {
     type Event;
     type Config: ApplicationConfig;
 
-    fn init(config: Self::Config, event_sender: EventSender<Self::Event>) -> Self;
+    fn init(
+        config: Self::Config,
+        event_sender: EventSender<Self::Event>,
+        device: &wgpu::Device
+    ) -> Self;
 
     fn update(&mut self);
 
-    fn draw(&self);
+    fn draw(&self, render_pass: &mut RenderPass);
 
     fn handle_window_event(&mut self, event: &WindowEvent, window: &Window, state: &mut State);
 
     fn handle_application_event(&mut self, event: Self::Event);
 
-    fn run(config: Self::Config) where Self: 'static + Sized {
+    fn run(config: Self::Config) {
         env_logger::init();
     
         let event_loop: EventLoop<Self::Event> = EventLoopBuilder::with_user_event().build();
@@ -373,9 +384,9 @@ pub trait Application {
             .with_title(config.window_title())
             .build(&event_loop).unwrap();
    
-        let mut app = Self::init(config, EventSender(event_loop.create_proxy()));
-
-        let mut state = pollster::block_on(State::new(&window));
+        let mut state = pollster::block_on(State::init(&window));
+        
+        let mut app = Self::init(config, EventSender(event_loop.create_proxy()), &state.device);
     
         event_loop.run(move |event, _, control_flow| {
             match event {
@@ -388,8 +399,7 @@ pub trait Application {
                 },
                 Event::RedrawRequested(window_id) if window_id == window.id() => {
                     app.update();
-                    // app.draw();
-                    match state.render() {
+                    match state.render(&app) {
                         Ok(_) => {}
                         Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
                         Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
