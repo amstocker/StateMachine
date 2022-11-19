@@ -1,7 +1,7 @@
 use winit::window::{Window, CursorIcon};
 use winit::event::{WindowEvent, MouseButton};
 
-use crate::ui::{Application, EventSender};
+use crate::ui::{Application, EventSender, State, MousePosition};
 use crate::config::InstrumentConfig;
 use crate::sequencer::{SequencerController, Sequencer};
 use crate::sound::Output;
@@ -13,7 +13,7 @@ pub enum InstrumentEvent {
 
 pub struct Instrument {
     sequencer_controller: SequencerController,
-    output: Output
+    output: Output,
 }
 
 impl Application for Instrument {
@@ -27,12 +27,21 @@ impl Application for Instrument {
 
         Self {
             sequencer_controller,
-            output
+            output,
         }
     }
 
-    fn handle_window_event(&mut self, event: &WindowEvent, window: &Window) {
+    fn handle_window_event(&mut self, event: &WindowEvent, window: &Window, state: &mut State) {
         match event {
+            WindowEvent::CursorMoved { .. } => {
+                let (x, y) = state.mouse_position.get();
+                state.clear_color = wgpu::Color {
+                    r: x as f64,
+                    g: y as f64,
+                    b: 1.0,
+                    a: 1.0,
+                };
+            },
             WindowEvent::MouseInput { button: MouseButton::Left, .. } => {
                 window.set_cursor_icon(CursorIcon::Grabbing);
             },
@@ -47,7 +56,6 @@ impl Application for Instrument {
     }
 
     fn update(&mut self) {
-
     }
 
     fn draw(&self) {

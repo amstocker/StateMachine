@@ -11,8 +11,6 @@ use bytemuck::{cast_slice, Pod, Zeroable};
 use crate::ui::fonts::*;
 
 
-const TITLE: &str = "state_machine";
-
 const VERTICES: &[Vertex] = &[
     Vertex { position: [0.0, 0.5, 0.0], color: [1.0, 0.0, 0.0] },
     Vertex { position: [-0.5, -0.5, 0.0], color: [0.0, 1.0, 0.0] },
@@ -54,17 +52,21 @@ impl Vertex {
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Pod, Zeroable)]
-struct Mouse([f32; 2]);
+pub struct MousePosition([f32; 2]);
 
-impl Mouse {
+impl MousePosition {
     pub fn set(&mut self, (x, y): (f32, f32)) {
         self.0[0] = x;
         self.0[1] = y;
     }
+
+    pub fn get(&self) -> (f32, f32) {
+        (self.0[0], self.0[1])
+    }
 }
 
 
-struct State {
+pub struct State {
     surface: wgpu::Surface,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -74,11 +76,11 @@ struct State {
     num_vertices: u32,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
-    size: winit::dpi::PhysicalSize<u32>,
-    clear_color: wgpu::Color,
+    pub size: winit::dpi::PhysicalSize<u32>,
+    pub clear_color: wgpu::Color,
     glyph_brush: GlyphBrush<()>,
     staging_belt: StagingBelt,
-    mouse_position: Mouse,
+    pub mouse_position: MousePosition,
     mouse_position_buffer: wgpu::Buffer,
     mouse_position_bind_group: wgpu::BindGroup
 }
@@ -88,7 +90,7 @@ impl State {
         use wgpu::util::DeviceExt;
 
         let size = window.inner_size();
-        let clear_color = wgpu::Color::BLACK;
+        let clear_color = wgpu::Color::WHITE;
 
         // GPU Init
         let instance = wgpu::Instance::new(wgpu::Backends::all());
@@ -142,7 +144,7 @@ impl State {
         let num_indices = INDICES.len() as u32;
         
         // Mouse Uniform
-        let mouse_position = Mouse([0.0, 0.0]);
+        let mouse_position = MousePosition([0.0, 0.0]);
         let mouse_position_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Mouse Position Buffer"),
@@ -268,15 +270,9 @@ impl State {
                 self.resize(**new_inner_size)
             },
             WindowEvent::CursorMoved { position, .. } => {
-                let x = position.x as f64 / self.size.width as f64;
-                let y = position.y as f64 / self.size.height as f64;
-                self.clear_color = wgpu::Color {
-                    r: x,
-                    g: y,
-                    b: 1.0,
-                    a: 1.0,
-                };
-                self.mouse_position.set((x as f32, y as f32));
+                let x = position.x as f32 / self.size.width as f32;
+                let y = position.y as f32 / self.size.height as f32;
+                self.mouse_position.set((x, y));
                 self.queue.write_buffer(&self.mouse_position_buffer, 0, cast_slice(&[self.mouse_position]));
             },
             _ => {},
@@ -365,7 +361,7 @@ pub trait Application {
 
     fn draw(&self);
 
-    fn handle_window_event(&mut self, event: &WindowEvent, window: &Window);
+    fn handle_window_event(&mut self, event: &WindowEvent, window: &Window, state: &mut State);
 
     fn handle_application_event(&mut self, event: Self::Event);
 
@@ -388,7 +384,7 @@ pub trait Application {
                     window_id,
                 } if window_id == window.id() => {
                     state.handle_window_event(event, control_flow);
-                    app.handle_window_event(event, &window);
+                    app.handle_window_event(event, &window, &mut state);
                 },
                 Event::RedrawRequested(window_id) if window_id == window.id() => {
                     app.update();
