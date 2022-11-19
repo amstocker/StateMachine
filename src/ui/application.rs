@@ -9,6 +9,7 @@ use wgpu_glyph::{GlyphBrushBuilder, Section, Text, GlyphBrush};
 use bytemuck::{cast_slice, Pod, Zeroable};
 
 use crate::ui::fonts::*;
+use crate::ui::quad::{QuadDrawer, Quad};
 
 
 const VERTICES: &[Vertex] = &[
@@ -284,7 +285,7 @@ impl State {
         }
     }
     
-    fn render<T: Application>(&mut self, app: &T) -> Result<(), wgpu::SurfaceError> {
+    fn render(&mut self, quad_drawer: &QuadDrawer) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
 
@@ -306,13 +307,13 @@ impl State {
                 depth_stencil_attachment: None,
             });
 
-            app.draw(&mut render_pass);
-
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.mouse_position_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
+            
+            quad_drawer.draw_all(&mut render_pass);
         }
 
         self.glyph_brush.queue(Section {
@@ -385,6 +386,16 @@ pub trait Application: 'static + Sized {
             .build(&event_loop).unwrap();
    
         let mut state = pollster::block_on(State::init(&window));
+
+        let mut quad_drawer = QuadDrawer::init(&state.device, state.config.format);
+
+        // TEMP
+        quad_drawer.add_quad(Quad {
+            position: (0.0, 0.0),
+            size: (0.5, 0.5),
+            color: wgpu::Color::RED,
+            z: 0.0
+        });
         
         let mut app = Self::init(
             config,
@@ -403,7 +414,8 @@ pub trait Application: 'static + Sized {
                 },
                 Event::RedrawRequested(window_id) if window_id == window.id() => {
                     app.update();
-                    match state.render(&app) {
+                    quad_drawer.write(&state.queue);
+                    match state.render(&quad_drawer) {
                         Ok(_) => {}
                         Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
                         Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,

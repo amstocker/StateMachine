@@ -75,6 +75,6 @@ impl Application for Instrument {
     }
 
     fn draw(&self, render_pass: &mut RenderPass) {
-    
+        // maybe don't even need a draw function?  just need to update quad/text location internally then it will automatically
     }
 }
