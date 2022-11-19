@@ -256,8 +256,17 @@ impl State {
         }
     }
 
-    fn pre_handle_input_event(&mut self, event: &WindowEvent) -> bool {
+    fn handle_window_event(&mut self, event: &WindowEvent, control_flow: &mut ControlFlow) {
         match event {
+            WindowEvent::CloseRequested => {
+                *control_flow = ControlFlow::Exit
+            },
+            WindowEvent::Resized(physical_size) => {
+                self.resize(*physical_size)
+            },
+            WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
+                self.resize(**new_inner_size)
+            },
             WindowEvent::CursorMoved { position, .. } => {
                 let x = position.x as f64 / self.size.width as f64;
                 let y = position.y as f64 / self.size.height as f64;
@@ -269,9 +278,8 @@ impl State {
                 };
                 self.mouse_position.set((x as f32, y as f32));
                 self.queue.write_buffer(&self.mouse_position_buffer, 0, cast_slice(&[self.mouse_position]));
-                true
             },
-            _ => false,
+            _ => {},
         }
     }
     
@@ -333,9 +341,23 @@ impl State {
 }
 
 
+#[derive(Clone)]
+pub struct EventSender<E>(EventLoopProxy<E>) where E: 'static;
+
+impl<E> EventSender<E> where E: 'static {
+    pub fn send(&self, event: E) -> Result<(), EventLoopClosed<E>> {
+        self.0.send_event(event)
+    }
+}
+
+pub trait ApplicationConfig {
+    fn window_title(&self) -> &str;
+}
+
+
 pub trait Application {
     type Event;
-    type Config;
+    type Config: ApplicationConfig;
 
     fn init(config: Self::Config, event_sender: EventSender<Self::Event>) -> Self;
 
@@ -343,14 +365,16 @@ pub trait Application {
 
     fn draw(&self);
 
-    fn handle(&mut self, event: Self::Event);
+    fn handle_window_event(&mut self, event: &WindowEvent, window: &Window);
+
+    fn handle_application_event(&mut self, event: Self::Event);
 
     fn run(config: Self::Config) where Self: 'static + Sized {
         env_logger::init();
     
         let event_loop: EventLoop<Self::Event> = EventLoopBuilder::with_user_event().build();
         let window = WindowBuilder::new()
-            .with_title(TITLE)
+            .with_title(config.window_title())
             .build(&event_loop).unwrap();
    
         let mut app = Self::init(config, EventSender(event_loop.create_proxy()));
@@ -362,22 +386,13 @@ pub trait Application {
                 Event::WindowEvent {
                     ref event,
                     window_id,
-                } if window_id == window.id() => if !state.pre_handle_input_event(event) {
-                    //window.set_cursor_icon(winit::window::CursorIcon::Grabbing);
-                    match event {
-                        WindowEvent::CloseRequested => {
-                            *control_flow = ControlFlow::Exit
-                        },
-                        WindowEvent::Resized(physical_size) => {
-                            state.resize(*physical_size)
-                        },
-                        WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                            state.resize(**new_inner_size)
-                        },
-                        _ => {}
-                    };
+                } if window_id == window.id() => {
+                    state.handle_window_event(event, control_flow);
+                    app.handle_window_event(event, &window);
                 },
                 Event::RedrawRequested(window_id) if window_id == window.id() => {
+                    app.update();
+                    // app.draw();
                     match state.render() {
                         Ok(_) => {}
                         Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
@@ -388,18 +403,12 @@ pub trait Application {
                 Event::MainEventsCleared => {
                     window.request_redraw();
                 },
-                Event::UserEvent(event) => app.handle(event),
+                Event::UserEvent(event) => {
+                    app.handle_application_event(event)
+                },
                 _ => {}
             }
         });
-    }
-}
-
-pub struct EventSender<E>(EventLoopProxy<E>) where E: 'static;
-
-impl<E> EventSender<E> where E: 'static {
-    pub fn send(&self, event: E) -> Result<(), EventLoopClosed<E>> {
-        self.0.send_event(event)
     }
 }
 
