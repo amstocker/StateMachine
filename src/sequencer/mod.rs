@@ -11,6 +11,8 @@ pub use control_message::*;
 
 pub const MAX_NODES: usize = 8;
 
+pub type NodeIndex = usize;
+
 // Note: implement copy for array items, and use generic const parameters!
 // (revisiting this note... it means that triggers etc should impl Copy,
 //  so that N can be a generic const and array init is easier)

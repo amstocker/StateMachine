@@ -386,7 +386,11 @@ pub trait Application: 'static + Sized {
    
         let mut state = pollster::block_on(State::init(&window));
         
-        let mut app = Self::init(config, EventSender(event_loop.create_proxy()), &state.device);
+        let mut app = Self::init(
+            config,
+            EventSender(event_loop.create_proxy()),
+            &state.device
+        );
     
         event_loop.run(move |event, _, control_flow| {
             match event {

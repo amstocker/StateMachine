@@ -1,8 +1,11 @@
+use crate::sequencer::NodeIndex;
+
+
 #[derive(Debug, Clone, Copy)]
 pub enum SequencerControlMessage {
-    EnableSound(usize),
-    DisableSound(usize),
-    PlaySoundOnce(usize),
-    IncrSoundIndex(usize),
-    DecrSoundIndex(usize)
+    EnableSound(NodeIndex),
+    DisableSound(NodeIndex),
+    PlaySoundOnce(NodeIndex),
+    IncrSoundIndex(NodeIndex),
+    DecrSoundIndex(NodeIndex)
 }
