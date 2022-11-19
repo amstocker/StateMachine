@@ -1,7 +1,7 @@
 use winit::event_loop::EventLoopProxy;
 
-use crate::application::ApplicationEvent;
 use crate::sound::{SoundBank, MAX_SOUNDS, StereoFrame, StereoFrameGenerator, Float};
+use crate::ui::EventSender;
 
 mod node;
 mod control_message;
@@ -18,21 +18,21 @@ pub struct SequencerController {
 
 }
 
-pub struct Sequencer {
-    event_loop_proxy: EventLoopProxy<ApplicationEvent>,
+pub struct Sequencer<E> where E: 'static {
+    event_sender: EventSender<E>,
     frames_processed: u64
 }
 
-impl Sequencer {
-    pub fn new(event_loop_proxy: EventLoopProxy<ApplicationEvent>) -> Self {
+impl<E> Sequencer<E> {
+    pub fn new(event_sender: EventSender<E>) -> Self {
         Self {
-            event_loop_proxy,
+            event_sender,
             frames_processed: 0
         }
     }
 }
 
-impl StereoFrameGenerator<Float> for Sequencer {
+impl<E> StereoFrameGenerator<Float> for Sequencer<E> {
     fn next_frame(&mut self) -> StereoFrame<Float> {
         StereoFrame::zero()
     }

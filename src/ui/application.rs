@@ -2,17 +2,16 @@ use wgpu::{include_wgsl, util::StagingBelt, CommandEncoder, RenderPass, TextureV
 use winit::{
     window::Window,
     event::*,
-    event_loop::{ControlFlow, EventLoop, EventLoopBuilder},
+    event_loop::{ControlFlow, EventLoop, EventLoopBuilder, EventLoopProxy, EventLoopClosed},
     window::WindowBuilder,
 };
 use wgpu_glyph::{GlyphBrushBuilder, Section, Text, GlyphBrush};
 use bytemuck::{cast_slice, Pod, Zeroable};
 
-use crate::{ui, sequencer::Sequencer, config::Config, sound::Output};
+use crate::ui::fonts::*;
 
 
 const TITLE: &str = "state_machine";
-
 
 const VERTICES: &[Vertex] = &[
     Vertex { position: [0.0, 0.5, 0.0], color: [1.0, 0.0, 0.0] },
@@ -24,11 +23,6 @@ const INDICES: &[u16] = &[
     0, 1, 2
 ];
 
-
-#[derive(Debug)]
-pub enum ApplicationEvent {
-
-}
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
@@ -183,7 +177,7 @@ impl State {
         });
 
         // Rendering Pipeline Init
-        let shader = device.create_shader_module(include_wgsl!("ui/shader.wgsl"));
+        let shader = device.create_shader_module(include_wgsl!("shader.wgsl"));
 
         let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Render Pipeline Layout"),
@@ -229,7 +223,7 @@ impl State {
         // WGPU Glyph Init
         let staging_belt = wgpu::util::StagingBelt::new(1024);
 
-        let font = ui::fonts::JETBRAINS_MONO_LIGHT_ITALIC.into();
+        let font = JETBRAINS_MONO_LIGHT_ITALIC.into();
         let glyph_brush = GlyphBrushBuilder::using_font(font).build(&device, format);
         
 
@@ -280,15 +274,7 @@ impl State {
             _ => false,
         }
     }
-
-    fn handle_application_event(&mut self, event: ApplicationEvent) {
-
-    }
-
-    fn update(&mut self) {
-        
-    }
-
+    
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -347,17 +333,34 @@ impl State {
 }
 
 
-pub fn run(config: Config) {
+pub trait Application {
+    type Event;
+
+    fn init(&mut self, event_sender: EventSender<Self::Event>);
+
+    fn update(&mut self);
+
+    fn draw(&self);
+
+    fn handle(&mut self, event: Self::Event);
+}
+
+pub struct EventSender<E>(EventLoopProxy<E>) where E: 'static;
+
+impl<E> EventSender<E> where E: 'static {
+    pub fn send(&self, event: E) -> Result<(), EventLoopClosed<E>> {
+        self.0.send_event(event)
+    }
+}
+
+
+pub fn run<T: Application>(mut app: T) where T: 'static {
     env_logger::init();
 
-    let event_loop: EventLoop<ApplicationEvent> = EventLoopBuilder::with_user_event().build();
+    let event_loop: EventLoop<T::Event> = EventLoopBuilder::with_user_event().build();
     let window = WindowBuilder::new()
         .with_title(TITLE)
         .build(&event_loop).unwrap();
-
-    let sequencer = Sequencer::new(event_loop.create_proxy());
-    let mut output = Output::new(config.output);
-    output.start(sequencer);
 
     let mut state = pollster::block_on(State::new(&window));
 
@@ -379,7 +382,6 @@ pub fn run(config: Config) {
                 };
             },
             Event::RedrawRequested(window_id) if window_id == window.id() => {
-                state.update();
                 match state.render() {
                     Ok(_) => {}
                     Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
@@ -390,7 +392,7 @@ pub fn run(config: Config) {
             Event::MainEventsCleared => {
                 window.request_redraw();
             },
-            Event::UserEvent(event) => state.handle_application_event(event),
+            Event::UserEvent(event) => app.handle(event),
             _ => {}
         }
     });
