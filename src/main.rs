@@ -2,64 +2,23 @@ mod sound;
 mod sequencer;
 mod ui;
 mod config;
+mod instrument;
 
-use ui::EventSender;
-
-use crate::ui::{run, Application};
-use crate::config::Config;
+use crate::config::InstrumentConfig;
+use crate::instrument::Instrument;
+use crate::ui::Application;
 use crate::sound::Sound;
 
 
-enum Event {
-
-}
-
-struct Instrument {
-
-}
-
-impl Instrument {
-    fn new(config: Config) -> Self {
-        Self {
-
-        }
-    }
-}
-
-impl Application for Instrument {
-    type Event = Event;
-
-    fn init(&mut self, event_sender: EventSender<Self::Event>) {
-        todo!()
-    }
-
-    fn update(&mut self) {
-        todo!()
-    }
-
-    fn draw(&self) {
-        todo!()
-    }
-
-    fn handle(&mut self, event: Self::Event) {
-        todo!()
-    }
-}
-
-
 fn main() {
-    let mut config = Config::default();
+    let mut config = InstrumentConfig::default();
 
     let files = [
         "assets/samples/kick.wav",
         "assets/samples/snare.wav",
         "assets/samples/hihat.wav"
     ];
-    for path in files {
-        config.sounds.push(Sound::from_wav_file(path, &config.output));
-    }
+    config.sounds = files.map(|path| Sound::from_wav_file(path, &config.output)).into();
 
-    let app = Instrument::new(config);
-
-    run(app);
+    Instrument::run(config);
 }

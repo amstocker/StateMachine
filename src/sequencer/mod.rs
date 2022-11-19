@@ -1,5 +1,6 @@
-use winit::event_loop::EventLoopProxy;
+use rtrb::{Consumer, Producer, RingBuffer};
 
+use crate::instrument::InstrumentEvent;
 use crate::sound::{SoundBank, MAX_SOUNDS, StereoFrame, StereoFrameGenerator, Float};
 use crate::ui::EventSender;
 
@@ -15,24 +16,31 @@ pub const MAX_NODES: usize = 8;
 
 
 pub struct SequencerController {
-
+    control_message_sender: Producer<SequencerControlMessage>
 }
 
-pub struct Sequencer<E> where E: 'static {
-    event_sender: EventSender<E>,
+pub struct Sequencer {
+    control_message_receiver: Consumer<SequencerControlMessage>,
+    event_sender: EventSender<InstrumentEvent>,
     frames_processed: u64
 }
 
-impl<E> Sequencer<E> {
-    pub fn new(event_sender: EventSender<E>) -> Self {
-        Self {
+impl Sequencer {
+    pub fn new(event_sender: EventSender<InstrumentEvent>) -> (SequencerController, Self) {
+        let (producer, consumer) = RingBuffer::new(1024);
+        let sequencer_controller = SequencerController {
+            control_message_sender: producer
+        };
+        let sequencer = Self {
+            control_message_receiver: consumer,
             event_sender,
             frames_processed: 0
-        }
+        };
+        (sequencer_controller, sequencer)
     }
 }
 
-impl<E> StereoFrameGenerator<Float> for Sequencer<E> {
+impl StereoFrameGenerator<Float> for Sequencer {
     fn next_frame(&mut self) -> StereoFrame<Float> {
         StereoFrame::zero()
     }

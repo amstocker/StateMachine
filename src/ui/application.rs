@@ -256,7 +256,7 @@ impl State {
         }
     }
 
-    fn handle_input_event(&mut self, event: &WindowEvent) -> bool {
+    fn pre_handle_input_event(&mut self, event: &WindowEvent) -> bool {
         match event {
             WindowEvent::CursorMoved { position, .. } => {
                 let x = position.x as f64 / self.size.width as f64;
@@ -335,14 +335,64 @@ impl State {
 
 pub trait Application {
     type Event;
+    type Config;
 
-    fn init(&mut self, event_sender: EventSender<Self::Event>);
+    fn init(config: Self::Config, event_sender: EventSender<Self::Event>) -> Self;
 
     fn update(&mut self);
 
     fn draw(&self);
 
     fn handle(&mut self, event: Self::Event);
+
+    fn run(config: Self::Config) where Self: 'static + Sized {
+        env_logger::init();
+    
+        let event_loop: EventLoop<Self::Event> = EventLoopBuilder::with_user_event().build();
+        let window = WindowBuilder::new()
+            .with_title(TITLE)
+            .build(&event_loop).unwrap();
+   
+        let mut app = Self::init(config, EventSender(event_loop.create_proxy()));
+
+        let mut state = pollster::block_on(State::new(&window));
+    
+        event_loop.run(move |event, _, control_flow| {
+            match event {
+                Event::WindowEvent {
+                    ref event,
+                    window_id,
+                } if window_id == window.id() => if !state.pre_handle_input_event(event) {
+                    //window.set_cursor_icon(winit::window::CursorIcon::Grabbing);
+                    match event {
+                        WindowEvent::CloseRequested => {
+                            *control_flow = ControlFlow::Exit
+                        },
+                        WindowEvent::Resized(physical_size) => {
+                            state.resize(*physical_size)
+                        },
+                        WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
+                            state.resize(**new_inner_size)
+                        },
+                        _ => {}
+                    };
+                },
+                Event::RedrawRequested(window_id) if window_id == window.id() => {
+                    match state.render() {
+                        Ok(_) => {}
+                        Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
+                        Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
+                        Err(e) => eprintln!("{:?}", e),
+                    }
+                },
+                Event::MainEventsCleared => {
+                    window.request_redraw();
+                },
+                Event::UserEvent(event) => app.handle(event),
+                _ => {}
+            }
+        });
+    }
 }
 
 pub struct EventSender<E>(EventLoopProxy<E>) where E: 'static;
@@ -354,46 +404,3 @@ impl<E> EventSender<E> where E: 'static {
 }
 
 
-pub fn run<T: Application>(mut app: T) where T: 'static {
-    env_logger::init();
-
-    let event_loop: EventLoop<T::Event> = EventLoopBuilder::with_user_event().build();
-    let window = WindowBuilder::new()
-        .with_title(TITLE)
-        .build(&event_loop).unwrap();
-
-    let mut state = pollster::block_on(State::new(&window));
-
-    event_loop.run(move |event, _, control_flow| {
-        match event {
-            Event::WindowEvent {
-                ref event,
-                window_id,
-            } if window_id == window.id() => if !state.handle_input_event(event) {
-                window.set_cursor_icon(winit::window::CursorIcon::Grabbing);
-                match event {
-                    WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                    WindowEvent::Resized(physical_size) => state.resize(*physical_size),
-                    WindowEvent::ScaleFactorChanged { 
-                        new_inner_size,
-                        .. 
-                    } => state.resize(**new_inner_size),
-                    _ => {}
-                };
-            },
-            Event::RedrawRequested(window_id) if window_id == window.id() => {
-                match state.render() {
-                    Ok(_) => {}
-                    Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
-                    Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
-                    Err(e) => eprintln!("{:?}", e),
-                }
-            },
-            Event::MainEventsCleared => {
-                window.request_redraw();
-            },
-            Event::UserEvent(event) => app.handle(event),
-            _ => {}
-        }
-    });
-}
