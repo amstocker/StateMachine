@@ -396,6 +396,12 @@ pub trait Application: 'static + Sized {
             color: wgpu::Color::RED,
             z: 0.0
         });
+        quad_drawer.add_quad(Quad {
+            position: (0.5, 0.5),
+            size: (0.5, 0.5),
+            color: wgpu::Color::GREEN,
+            z: 0.0
+        });
         
         let mut app = Self::init(
             config,

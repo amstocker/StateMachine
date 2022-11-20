@@ -13,7 +13,7 @@ const QUAD_VERTICES: &[QuadVertex] = &[
 
 const QUAD_INDICES: &[u16] = &[
     0, 1, 2,
-    2, 1, 3
+    3, 2, 1
 ];
 
 const NUM_QUAD_INDICES: u32 = QUAD_INDICES.len() as u32;
@@ -108,6 +108,8 @@ pub struct QuadDrawer {
 impl QuadDrawer {
     pub fn init(device: &Device, format: TextureFormat) -> Self {
         use wgpu::util::DeviceExt;
+
+        println!("size_of(QuadInstance) = {:?}", std::mem::size_of::<QuadInstance>());
 
         let shader = device.create_shader_module(include_wgsl!("quad.wgsl"));
 
