@@ -53,7 +53,7 @@ impl Application for Instrument {
         }
     }
 
-    fn handle_window_event(&mut self, event: &WindowEvent, window: &Window, state: &mut GPUState) {
+    fn handle_window_event(&mut self, event: &WindowEvent, window: &Window) {
         match event {
             WindowEvent::MouseInput { button: MouseButton::Left, state, .. } => {
                 match state {
@@ -74,7 +74,7 @@ impl Application for Instrument {
                 }
             },
             WindowEvent::CursorMoved { position, .. } => {
-                self.mouse_position = MousePosition::from_physical(position, state.size);
+                self.mouse_position = MousePosition::from_physical(position, window.inner_size());
                 if !self.grabbing {
                     if self.test_quad.contains(self.mouse_position) {
                         window.set_cursor_icon(CursorIcon::Grab);

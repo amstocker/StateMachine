@@ -123,7 +123,6 @@ impl QuadDrawer {
 
         let shader = device.create_shader_module(include_wgsl!("quad.wgsl"));
 
-
         let vertex_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Quad Vertex Buffer"),

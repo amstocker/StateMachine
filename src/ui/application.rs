@@ -140,7 +140,7 @@ pub trait Application: 'static + Sized {
 
     fn draw(&self, drawer: &mut Drawer);
 
-    fn handle_window_event(&mut self, event: &WindowEvent, window: &Window, state: &mut GPUState);
+    fn handle_window_event(&mut self, event: &WindowEvent, window: &Window);
 
     fn handle_application_event(&mut self, event: Self::Event);
 
@@ -183,10 +183,9 @@ pub trait Application: 'static + Sized {
                         },
                         _ => {},
                     };
-                    app.handle_window_event(event, &window, &mut state);
+                    app.handle_window_event(event, &window);
                 },
                 Event::RedrawRequested(window_id) if window_id == window.id() => {
-                    app.update();
                     app.draw(&mut drawer);
                     drawer.quad.write(&state.queue);
                     match state.render(&mut drawer) {
@@ -197,6 +196,7 @@ pub trait Application: 'static + Sized {
                     }
                 },
                 Event::MainEventsCleared => {
+                    app.update();
                     window.request_redraw();
                 },
                 Event::UserEvent(event) => {
