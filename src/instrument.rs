@@ -2,6 +2,7 @@ use winit::window::{Window, CursorIcon};
 use winit::event::{WindowEvent, MouseButton, ElementState};
 
 use crate::ui::drawer::{Drawer, quad::Quad, text::Text};
+use crate::ui::mouse::MousePosition;
 use crate::ui::{Application, EventSender, GPUState};
 use crate::config::InstrumentConfig;
 use crate::sequencer::{SequencerController, Sequencer};
@@ -15,6 +16,10 @@ pub enum InstrumentEvent {
 pub struct Instrument {
     sequencer_controller: SequencerController,
     output: Output,
+    mouse_position: MousePosition,
+    test_quad: Quad,
+    grabbing: bool,
+    relative: (f32, f32)
 }
 
 impl Application for Instrument {
@@ -36,6 +41,15 @@ impl Application for Instrument {
         Self {
             sequencer_controller,
             output,
+            mouse_position: MousePosition::default(),
+            test_quad: Quad {
+                position: (0.5, 0.5),
+                size: (0.5, 0.5),
+                color: wgpu::Color::GREEN,
+                z: 0.0
+            },
+            grabbing: false,
+            relative: (0.0, 0.0)
         }
     }
 
@@ -45,12 +59,36 @@ impl Application for Instrument {
                 match state {
                     ElementState::Pressed => {
                         window.set_cursor_icon(CursorIcon::Grabbing);
+                        if self.test_quad.contains(self.mouse_position) { 
+                            self.grabbing = true;
+                            self.relative = (
+                                self.mouse_position.x - self.test_quad.position.0,
+                                self.mouse_position.y - self.test_quad.position.1
+                            );
+                        }
                     },
                     ElementState::Released => {
                         window.set_cursor_icon(CursorIcon::Default);
+                        self.grabbing = false;
                     }
                 }
             },
+            WindowEvent::CursorMoved { position, .. } => {
+                self.mouse_position = MousePosition::from_physical(position, state.size);
+                if !self.grabbing {
+                    if self.test_quad.contains(self.mouse_position) {
+                        window.set_cursor_icon(CursorIcon::Grab);
+                    } else {
+                        window.set_cursor_icon(CursorIcon::Default);
+                    }
+                }
+                if self.grabbing {
+                    self.test_quad.position = (
+                        self.mouse_position.x - self.relative.0,
+                        self.mouse_position.y - self.relative.1
+                    );
+                }
+            }
             _ => {}
         };
     }
@@ -65,21 +103,10 @@ impl Application for Instrument {
     }
 
     fn draw(&self, drawer: &mut Drawer) {
-        drawer.draw_quad(Quad {
-            position: (0.0, 0.0),
-            size: (0.5, 0.5),
-            color: wgpu::Color::RED,
-            z: 0.0
-        });
-        drawer.draw_quad(Quad {
-            position: (0.5, 0.5),
-            size: (0.5, 0.5),
-            color: wgpu::Color::GREEN,
-            z: 0.0
-        });
+        drawer.draw_quad(&self.test_quad);
         drawer.draw_text(Text {
             text: "Hello".into(),
-            position: (0.0, 1.0),
+            position: (0.0, 0.1),
             scale: 40.0,
             color: wgpu::Color::BLACK,
         });

@@ -1,21 +1,34 @@
 use bytemuck::{Pod, Zeroable, cast_slice};
 use wgpu::{Device, BindGroup};
+use winit::dpi::{PhysicalPosition, PhysicalSize};
 
+
+#[derive(Default, Clone, Copy)]
+pub struct MousePosition {
+    pub x: f32,
+    pub y: f32
+}
+
+impl MousePosition {
+    pub fn from_physical(position: &PhysicalPosition<f64>, size: PhysicalSize<u32>) -> MousePosition {
+        MousePosition {
+            x: position.x as f32 / size.width as f32,
+            y: (size.height as f32 - position.y as f32) / size.height as f32
+        }
+    }
+}
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Pod, Zeroable)]
-pub struct MousePosition([f32; 2]);
+pub struct MousePositionUniform([f32; 2]);
 
-impl MousePosition {
-    pub fn set(&mut self, (x, y): (f32, f32)) {
-        self.0[0] = x;
-        self.0[1] = y;
+impl Into<MousePositionUniform> for MousePosition {
+    fn into(self) -> MousePositionUniform {
+        MousePositionUniform([self.x, self.y])
     }
+}
 
-    pub fn get(&self) -> (f32, f32) {
-        (self.0[0], self.0[1])
-    }
-
+impl MousePositionUniform {
     pub fn bind_group(&self, device: &Device) -> BindGroup {
         use wgpu::util::DeviceExt;
 

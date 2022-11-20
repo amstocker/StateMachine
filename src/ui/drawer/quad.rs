@@ -1,6 +1,8 @@
 use bytemuck::{Pod, Zeroable, cast_slice};
 use wgpu::{include_wgsl, ShaderModule, Device, RenderPipeline, Buffer, RenderPass, TextureFormat, Queue, Color};
 
+use crate::ui::mouse::MousePosition;
+
 use super::util::color_to_f32_array;
 
 
@@ -86,7 +88,16 @@ pub struct Quad {
     pub z: f32
 }
 
-impl Into<QuadInstance> for Quad {
+impl Quad {
+    pub fn contains(&self, position: MousePosition) -> bool {
+        position.x > self.position.0 &&
+        position.x < self.position.0 + self.size.0 &&
+        position.y > self.position.1 &&
+        position.y < self.position.1 + self.size.1
+    }
+}
+
+impl Into<QuadInstance> for &Quad {
     fn into(self) -> QuadInstance {
         QuadInstance {
             position: [self.position.0, self.position.1, self.z],
@@ -109,8 +120,6 @@ pub struct QuadDrawer {
 impl QuadDrawer {
     pub fn init(device: &Device, format: TextureFormat) -> Self {
         use wgpu::util::DeviceExt;
-
-        println!("size_of(QuadInstance) = {:?}", std::mem::size_of::<QuadInstance>());
 
         let shader = device.create_shader_module(include_wgsl!("quad.wgsl"));
 
@@ -189,7 +198,7 @@ impl QuadDrawer {
         }
     }
 
-    pub fn draw(&mut self, quad: Quad) {
+    pub fn draw(&mut self, quad: &Quad) {
         self.instances[self.active as usize] = quad.into();
         self.active += 1;
     }

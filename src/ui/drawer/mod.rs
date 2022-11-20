@@ -20,7 +20,7 @@ impl Drawer {
         }
     }
 
-    pub fn draw_quad(&mut self, quad: Quad) {
+    pub fn draw_quad(&mut self, quad: &Quad) {
         self.quad.draw(quad);
     }
 

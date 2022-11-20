@@ -162,6 +162,8 @@ pub trait Application: 'static + Sized {
         );
     
         event_loop.run(move |event, _, control_flow| {
+            control_flow.set_poll();
+
             match event {
                 Event::WindowEvent {
                     ref event,
