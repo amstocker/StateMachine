@@ -1,6 +1,8 @@
 use bytemuck::{Pod, Zeroable, cast_slice};
 use wgpu::{include_wgsl, ShaderModule, Device, RenderPipeline, Buffer, RenderPass, TextureFormat, Queue, Color};
 
+use super::util::color_to_f32_array;
+
 
 pub const MAX_QUADS: usize = 128;
 
@@ -86,11 +88,10 @@ pub struct Quad {
 
 impl Into<QuadInstance> for Quad {
     fn into(self) -> QuadInstance {
-        let Color { r, g, b, a } = self.color;
         QuadInstance {
             position: [self.position.0, self.position.1, self.z],
             size: [self.size.0, self.size.1],
-            color: [r as f32, g as f32, b as f32, a as f32]
+            color: color_to_f32_array(self.color)
         }
     }
 }
@@ -188,20 +189,16 @@ impl QuadDrawer {
         }
     }
 
-    pub fn add_quad(&mut self, quad: Quad) {
+    pub fn draw(&mut self, quad: Quad) {
         self.instances[self.active as usize] = quad.into();
         self.active += 1;
-    }
-
-    pub fn queue(&mut self, quad: QuadInstance) {
-
     }
 
     pub fn write(&self, queue: &Queue) {
         queue.write_buffer(&self.instance_buffer, 0, cast_slice(&[self.instances]));
     }
 
-    pub fn draw_all<'a>(&'a self, render_pass: &mut RenderPass<'a>) {
+    pub fn draw_all<'a>(&'a mut self, render_pass: &mut RenderPass<'a>) {
         render_pass.set_pipeline(&self.render_pipeline);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
@@ -212,7 +209,8 @@ impl QuadDrawer {
         render_pass.draw_indexed(
             0..NUM_QUAD_INDICES,
             0,
-            0..(self.active + 1)
+            0..self.active
         );
+        self.active = 0;
     }
 }

@@ -1,99 +1,29 @@
-use wgpu::{include_wgsl, util::StagingBelt, CommandEncoder, RenderPass, TextureView, SurfaceTexture};
+use wgpu::util::StagingBelt;
 use winit::{
     window::Window,
     event::*,
     event_loop::{ControlFlow, EventLoop, EventLoopBuilder, EventLoopProxy, EventLoopClosed},
     window::WindowBuilder,
 };
-use wgpu_glyph::{GlyphBrushBuilder, Section, Text, GlyphBrush};
-use bytemuck::{cast_slice, Pod, Zeroable};
 
-use crate::ui::fonts::*;
-use crate::ui::quad::{QuadDrawer, Quad};
+use crate::ui::drawer::Drawer;
 
 
-const VERTICES: &[Vertex] = &[
-    Vertex { position: [0.0, 0.5, 0.0], color: [1.0, 0.0, 0.0] },
-    Vertex { position: [-0.5, -0.5, 0.0], color: [0.0, 1.0, 0.0] },
-    Vertex { position: [0.5, -0.5, 0.0], color: [0.0, 0.0, 1.0] },
-];
-
-const INDICES: &[u16] = &[
-    0, 1, 2
-];
-
-
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Pod, Zeroable)]
-struct Vertex {
-    position: [f32; 3],
-    color: [f32; 3],
-}
-
-impl Vertex {
-    fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                    shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x3,
-                }
-            ]
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Debug, Copy, Clone, Pod, Zeroable)]
-pub struct MousePosition([f32; 2]);
-
-impl MousePosition {
-    pub fn set(&mut self, (x, y): (f32, f32)) {
-        self.0[0] = x;
-        self.0[1] = y;
-    }
-
-    pub fn get(&self) -> (f32, f32) {
-        (self.0[0], self.0[1])
-    }
-}
-
-
-pub struct State {
-    surface: wgpu::Surface,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
-    config: wgpu::SurfaceConfiguration,
-    render_pipeline: wgpu::RenderPipeline,
-    vertex_buffer: wgpu::Buffer,
-    num_vertices: u32,
-    index_buffer: wgpu::Buffer,
-    num_indices: u32,
+pub struct GPUState {
+    pub surface: wgpu::Surface,
+    pub device: wgpu::Device,
+    pub queue: wgpu::Queue,
+    pub config: wgpu::SurfaceConfiguration,
     pub size: winit::dpi::PhysicalSize<u32>,
     pub clear_color: wgpu::Color,
-    glyph_brush: GlyphBrush<()>,
-    staging_belt: StagingBelt,
-    pub mouse_position: MousePosition,
-    mouse_position_buffer: wgpu::Buffer,
-    mouse_position_bind_group: wgpu::BindGroup
+    pub staging_belt: StagingBelt,
 }
 
-impl State {
+impl GPUState {
     async fn init(window: &Window) -> Self {
-        use wgpu::util::DeviceExt;
-
         let size = window.inner_size();
         let clear_color = wgpu::Color::WHITE;
 
-        // GPU Init
         let instance = wgpu::Instance::new(wgpu::Backends::all());
         let surface = unsafe { instance.create_surface(window) };
         let adapter = instance.request_adapter(
@@ -124,134 +54,16 @@ impl State {
         };
         surface.configure(&device, &config);
 
-
-        /*
-         * Below here can be implemented in the Application impl
-         */
-
-        // Vertex Buffer
-        let vertex_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Vertex Buffer"),
-                contents: cast_slice(VERTICES),
-                usage: wgpu::BufferUsages::VERTEX,
-            }
-        );
-        let num_vertices = VERTICES.len() as u32;
-        
-        // Index Buffer
-        let index_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Index Buffer"),
-                contents: cast_slice(INDICES),
-                usage: wgpu::BufferUsages::INDEX,
-            }
-        );
-        let num_indices = INDICES.len() as u32;
-        
-        // Mouse Uniform
-        let mouse_position = MousePosition([0.0, 0.0]);
-        let mouse_position_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Mouse Position Buffer"),
-                contents: cast_slice(&[mouse_position]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            }
-        );
-        let mouse_position_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }
-            ],
-            label: Some("Mouse Position Bind Group Layout"),
-        });
-        let mouse_position_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &mouse_position_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: mouse_position_buffer.as_entire_binding(),
-                }
-            ],
-            label: Some("Mouse Position Bind Group"),
-        });
-
-        // Rendering Pipeline Init
-        let shader = device.create_shader_module(include_wgsl!("shader.wgsl"));
-
-        let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[
-                &mouse_position_bind_group_layout
-            ],
-            push_constant_ranges: &[],
-        });
-
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vs_main",
-                buffers: &[
-                    Vertex::desc(),
-                ]
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: "fs_main",
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: config.format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL
-                })]
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None
-        });
-
-        // WGPU Glyph Init
         let staging_belt = wgpu::util::StagingBelt::new(1024);
-
-        let font = JETBRAINS_MONO_LIGHT_ITALIC.into();
-        let glyph_brush = GlyphBrushBuilder::using_font(font).build(&device, format);
         
-
         Self {
             surface,
             device,
             queue,
             config,
-            render_pipeline,
-            vertex_buffer,
-            num_vertices,
-            index_buffer,
-            num_indices,
             size,
             clear_color,
-            glyph_brush,
-            staging_belt,
-            mouse_position,
-            mouse_position_buffer,
-            mouse_position_bind_group
+            staging_belt
         }
     }
 
@@ -263,29 +75,8 @@ impl State {
             self.surface.configure(&self.device, &self.config);
         }
     }
-
-    fn handle_window_event(&mut self, event: &WindowEvent, control_flow: &mut ControlFlow) {
-        match event {
-            WindowEvent::CloseRequested => {
-                *control_flow = ControlFlow::Exit
-            },
-            WindowEvent::Resized(physical_size) => {
-                self.resize(*physical_size)
-            },
-            WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                self.resize(**new_inner_size)
-            },
-            WindowEvent::CursorMoved { position, .. } => {
-                let x = position.x as f32 / self.size.width as f32;
-                let y = position.y as f32 / self.size.height as f32;
-                self.mouse_position.set((x, y));
-                self.queue.write_buffer(&self.mouse_position_buffer, 0, cast_slice(&[self.mouse_position]));
-            },
-            _ => {},
-        }
-    }
     
-    fn render(&mut self, quad_drawer: &QuadDrawer) -> Result<(), wgpu::SurfaceError> {
+    fn render(&mut self, drawer: &mut Drawer) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
 
@@ -307,34 +98,11 @@ impl State {
                 depth_stencil_attachment: None,
             });
 
-            render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.mouse_position_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
-            
-            quad_drawer.draw_all(&mut render_pass);
+            drawer.quad.draw_all(&mut render_pass);
         }
 
-        self.glyph_brush.queue(Section {
-            screen_position: (30.0, 30.0),
-            bounds: (self.size.width as f32, self.size.height as f32),
-            text: vec![Text::new("Hello wgpu_glyph!")
-                .with_color([0.0, 0.0, 0.0, 1.0])
-                .with_scale(40.0)],
-            ..Section::default()
-        });
-        self.glyph_brush
-            .draw_queued(
-                &self.device,
-                &mut self.staging_belt,
-                &mut encoder,
-                &view,
-                self.size.width,
-                self.size.height,
-            )
-            .expect("Draw queued");
-        
+        drawer.text.draw_all(&mut encoder, view, self);
+
         self.staging_belt.finish();
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
@@ -365,15 +133,14 @@ pub trait Application: 'static + Sized {
 
     fn init(
         config: Self::Config,
-        event_sender: EventSender<Self::Event>,
-        device: &wgpu::Device
+        event_sender: EventSender<Self::Event>
     ) -> Self;
 
     fn update(&mut self);
 
-    fn draw(&self, render_pass: &mut RenderPass);
+    fn draw(&self, drawer: &mut Drawer);
 
-    fn handle_window_event(&mut self, event: &WindowEvent, window: &Window, state: &mut State);
+    fn handle_window_event(&mut self, event: &WindowEvent, window: &Window, state: &mut GPUState);
 
     fn handle_application_event(&mut self, event: Self::Event);
 
@@ -385,28 +152,13 @@ pub trait Application: 'static + Sized {
             .with_title(config.window_title())
             .build(&event_loop).unwrap();
    
-        let mut state = pollster::block_on(State::init(&window));
+        let mut state = pollster::block_on(GPUState::init(&window));
 
-        let mut quad_drawer = QuadDrawer::init(&state.device, state.config.format);
-
-        // TEMP
-        quad_drawer.add_quad(Quad {
-            position: (0.0, 0.0),
-            size: (0.5, 0.5),
-            color: wgpu::Color::RED,
-            z: 0.0
-        });
-        quad_drawer.add_quad(Quad {
-            position: (0.5, 0.5),
-            size: (0.5, 0.5),
-            color: wgpu::Color::GREEN,
-            z: 0.0
-        });
+        let mut drawer = Drawer::init(&state.device, &state.config);
         
         let mut app = Self::init(
             config,
-            EventSender(event_loop.create_proxy()),
-            &state.device
+            EventSender(event_loop.create_proxy())
         );
     
         event_loop.run(move |event, _, control_flow| {
@@ -415,13 +167,27 @@ pub trait Application: 'static + Sized {
                     ref event,
                     window_id,
                 } if window_id == window.id() => {
-                    state.handle_window_event(event, control_flow);
+                    match event {
+                        WindowEvent::CloseRequested => {
+                            *control_flow = ControlFlow::Exit;
+                        },
+                        WindowEvent::Resized(physical_size) => {
+                            state.resize(*physical_size);
+                            drawer.text.resize((physical_size.width, physical_size.height));
+                        },
+                        WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
+                            state.resize(**new_inner_size);
+                            drawer.text.resize((new_inner_size.width, new_inner_size.height));
+                        },
+                        _ => {},
+                    };
                     app.handle_window_event(event, &window, &mut state);
                 },
                 Event::RedrawRequested(window_id) if window_id == window.id() => {
                     app.update();
-                    quad_drawer.write(&state.queue);
-                    match state.render(&quad_drawer) {
+                    app.draw(&mut drawer);
+                    drawer.quad.write(&state.queue);
+                    match state.render(&mut drawer) {
                         Ok(_) => {}
                         Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
                         Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
