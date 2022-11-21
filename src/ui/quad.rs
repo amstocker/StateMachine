@@ -2,17 +2,18 @@ use bytemuck::{Pod, Zeroable, cast_slice};
 use wgpu::{include_wgsl, ShaderModule, Device, RenderPipeline, Buffer, RenderPass, TextureFormat, Queue, Color};
 
 use crate::ui::mouse::MousePosition;
+use crate::ui::vertex::Vertex;
 
 use super::util::color_to_f32_array;
 
 
 pub const MAX_QUADS: usize = 128;
 
-const QUAD_VERTICES: &[QuadVertex] = &[
-    QuadVertex { position: [0.0, 0.0] },
-    QuadVertex { position: [1.0, 0.0] },
-    QuadVertex { position: [0.0, 1.0] },
-    QuadVertex { position: [1.0, 1.0] }
+const QUAD_VERTICES: &[Vertex] = &[
+    Vertex { position: [0.0, 0.0] },
+    Vertex { position: [1.0, 0.0] },
+    Vertex { position: [0.0, 1.0] },
+    Vertex { position: [1.0, 1.0] }
 ];
 
 const QUAD_INDICES: &[u16] = &[
@@ -23,27 +24,7 @@ const QUAD_INDICES: &[u16] = &[
 const NUM_QUAD_INDICES: u32 = QUAD_INDICES.len() as u32;
 
 
-#[repr(C)]
-#[derive(Copy, Clone, Pod, Zeroable)]
-struct QuadVertex {
-    position: [f32; 2]
-}
 
-impl QuadVertex {
-    fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<QuadVertex>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x2,
-                }
-            ]
-        }
-    }
-}
 
 
 #[repr(C)]
@@ -158,7 +139,7 @@ impl QuadDrawer {
                 module: &shader,
                 entry_point: "vs_main",
                 buffers: &[
-                    QuadVertex::desc(),
+                    Vertex::desc(),
                     QuadInstance::desc()
                 ]
             },

@@ -1,9 +1,8 @@
 use wgpu::{Device, TextureFormat, CommandEncoder, TextureView, Color};
 use wgpu_glyph::{GlyphBrushBuilder, ab_glyph::FontArc, GlyphBrush, Section};
 
-use crate::ui::{fonts::*, GPUState};
-
-use super::util::color_to_f32_array;
+use crate::ui::{fonts::*, State};
+use crate::ui::util::color_to_f32_array;
 
 
 pub struct Text<'a> {
@@ -56,7 +55,7 @@ impl TextDrawer {
         self.glyph_brush.queue(text.into_section(self.bounds));
     }
 
-    pub fn draw_all(&mut self, encoder: &mut CommandEncoder, view: TextureView, gpu_state: &mut GPUState) {
+    pub fn draw_all(&mut self, encoder: &mut CommandEncoder, view: TextureView, gpu_state: &mut State) {
         self.glyph_brush
             .draw_queued(
                 &gpu_state.device,

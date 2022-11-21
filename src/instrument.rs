@@ -1,7 +1,8 @@
 use winit::window::{Window, CursorIcon};
 use winit::event::{WindowEvent, MouseButton, ElementState};
 
-use crate::ui::drawer::{Drawer, quad::Quad, text::Text};
+use crate::ui::quad::{Quad, QuadDrawer};
+use crate::ui::text::{Text, TextDrawer};
 use crate::ui::mouse::MousePosition;
 use crate::ui::Application;
 use crate::config::InstrumentConfig;
@@ -16,7 +17,7 @@ pub struct Instrument {
     test_quad: Quad,
     grabbing: bool,
     relative: (f32, f32),
-    frames_processed: u64
+    total_frames_processed: u64
 }
 
 impl Application for Instrument {
@@ -43,7 +44,7 @@ impl Application for Instrument {
             },
             grabbing: false,
             relative: (0.0, 0.0),
-            frames_processed: 0
+            total_frames_processed: 0
         }
     }
 
@@ -88,19 +89,19 @@ impl Application for Instrument {
     fn update(&mut self) {
         while let Ok(event) = self.sequencer_controller.event_receiver.pop() {
             match event {
-                SequencerEvent::Tick(frames_processed) => {
-                    self.frames_processed = frames_processed;
+                SequencerEvent::Tick(state) => {
+                    self.total_frames_processed = state.total_frames_processed;
                 }
             }
         }
     }
 
-    fn draw(&self, drawer: &mut Drawer) {
-        drawer.draw_quad(&self.test_quad);
-        drawer.draw_text(Text {
-            text: &format!("Frames Processed: {}", self.frames_processed),
-            position: (0.0, 0.1),
-            scale: 40.0,
+    fn draw(&self, quad_drawer: &mut QuadDrawer, text_drawer: &mut TextDrawer) {
+        quad_drawer.draw(&self.test_quad);
+        text_drawer.draw(Text {
+            text: &format!("Frames Processed: {}", self.total_frames_processed),
+            position: (0.0, 1.0),
+            scale: 30.0,
             color: wgpu::Color::BLACK,
         });
     }
