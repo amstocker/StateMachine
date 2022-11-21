@@ -52,7 +52,6 @@ impl Application for Instrument {
             WindowEvent::MouseInput { button: MouseButton::Left, state, .. } => {
                 match state {
                     ElementState::Pressed => {
-                        window.set_cursor_icon(CursorIcon::Grabbing);
                         if self.test_quad.contains(self.mouse_position) { 
                             self.grabbing = true;
                             self.relative = (
@@ -62,7 +61,6 @@ impl Application for Instrument {
                         }
                     },
                     ElementState::Released => {
-                        window.set_cursor_icon(CursorIcon::Default);
                         self.grabbing = false;
                     }
                 }
@@ -75,8 +73,8 @@ impl Application for Instrument {
                     } else {
                         window.set_cursor_icon(CursorIcon::Default);
                     }
-                }
-                if self.grabbing {
+                } else {
+                    window.set_cursor_icon(CursorIcon::Grabbing);
                     self.test_quad.position = (
                         self.mouse_position.x - self.relative.0,
                         self.mouse_position.y - self.relative.1
