@@ -108,7 +108,6 @@ impl Into<QuadInstance> for &Quad {
 }
 
 pub struct QuadDrawer {
-    shader: ShaderModule,
     vertex_buffer: Buffer,
     index_buffer: Buffer,
     instance_buffer: Buffer,
@@ -187,7 +186,6 @@ impl QuadDrawer {
         });
 
         Self {
-            shader,
             vertex_buffer,
             index_buffer,
             instance_buffer,

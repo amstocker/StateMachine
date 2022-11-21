@@ -9,3 +9,8 @@ pub enum SequencerControlMessage {
     IncrSoundIndex(NodeIndex),
     DecrSoundIndex(NodeIndex)
 }
+
+#[derive(Debug, Clone, Copy)]
+pub enum SequencerEvent {
+    Tick(u64)
+}

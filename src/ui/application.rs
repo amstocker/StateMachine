@@ -113,28 +113,15 @@ impl GPUState {
 }
 
 
-#[derive(Clone)]
-pub struct EventSender<E>(EventLoopProxy<E>) where E: 'static;
-
-impl<E> EventSender<E> where E: 'static {
-    pub fn send(&self, event: E) -> Result<(), EventLoopClosed<E>> {
-        self.0.send_event(event)
-    }
-}
-
 pub trait ApplicationConfig {
     fn window_title(&self) -> &str;
 }
 
 
 pub trait Application: 'static + Sized {
-    type Event;
     type Config: ApplicationConfig;
 
-    fn init(
-        config: Self::Config,
-        event_sender: EventSender<Self::Event>
-    ) -> Self;
+    fn init(config: Self::Config) -> Self;
 
     fn update(&mut self);
 
@@ -142,12 +129,10 @@ pub trait Application: 'static + Sized {
 
     fn handle_window_event(&mut self, event: &WindowEvent, window: &Window);
 
-    fn handle_application_event(&mut self, event: Self::Event);
-
     fn run(config: Self::Config) {
         env_logger::init();
     
-        let event_loop: EventLoop<Self::Event> = EventLoopBuilder::with_user_event().build();
+        let event_loop = EventLoop::new();
         let window = WindowBuilder::new()
             .with_title(config.window_title())
             .build(&event_loop).unwrap();
@@ -156,10 +141,7 @@ pub trait Application: 'static + Sized {
 
         let mut drawer = Drawer::init(&state.device, &state.config);
         
-        let mut app = Self::init(
-            config,
-            EventSender(event_loop.create_proxy())
-        );
+        let mut app = Self::init(config);
     
         event_loop.run(move |event, _, control_flow| {
             control_flow.set_poll();
@@ -198,9 +180,6 @@ pub trait Application: 'static + Sized {
                 Event::MainEventsCleared => {
                     app.update();
                     window.request_redraw();
-                },
-                Event::UserEvent(event) => {
-                    app.handle_application_event(event)
                 },
                 _ => {}
             }

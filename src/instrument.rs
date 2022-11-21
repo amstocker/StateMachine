@@ -3,44 +3,37 @@ use winit::event::{WindowEvent, MouseButton, ElementState};
 
 use crate::ui::drawer::{Drawer, quad::Quad, text::Text};
 use crate::ui::mouse::MousePosition;
-use crate::ui::{Application, EventSender, GPUState};
+use crate::ui::Application;
 use crate::config::InstrumentConfig;
-use crate::sequencer::{SequencerController, Sequencer};
+use crate::sequencer::{SequencerController, Sequencer, SequencerEvent};
 use crate::sound::Output;
 
 
-pub enum InstrumentEvent {
-
-}
-
 pub struct Instrument {
     sequencer_controller: SequencerController,
-    output: Output,
+    _output: Output,
     mouse_position: MousePosition,
     test_quad: Quad,
     grabbing: bool,
-    relative: (f32, f32)
+    relative: (f32, f32),
+    frames_processed: u64
 }
 
 impl Application for Instrument {
-    type Event = InstrumentEvent;
     type Config = InstrumentConfig;
 
-    fn init(
-        config: InstrumentConfig,
-        event_sender: EventSender<InstrumentEvent>
-    ) -> Instrument {
+    fn init(config: InstrumentConfig) -> Instrument {
         let (
             sequencer_controller,
             sequencer
-        ) = Sequencer::new(event_sender);
+        ) = Sequencer::new();
         
         let mut output = Output::new(config.output);
         output.start(sequencer);
 
         Self {
             sequencer_controller,
-            output,
+            _output: output,
             mouse_position: MousePosition::default(),
             test_quad: Quad {
                 position: (0.5, 0.5),
@@ -49,7 +42,8 @@ impl Application for Instrument {
                 z: 0.0
             },
             grabbing: false,
-            relative: (0.0, 0.0)
+            relative: (0.0, 0.0),
+            frames_processed: 0
         }
     }
 
@@ -93,19 +87,20 @@ impl Application for Instrument {
         };
     }
 
-    fn handle_application_event(&mut self, event: InstrumentEvent) {
-        match event {
-
-        }
-    }
-
     fn update(&mut self) {
+        while let Ok(event) = self.sequencer_controller.event_receiver.pop() {
+            match event {
+                SequencerEvent::Tick(frames_processed) => {
+                    self.frames_processed = frames_processed;
+                }
+            }
+        }
     }
 
     fn draw(&self, drawer: &mut Drawer) {
         drawer.draw_quad(&self.test_quad);
         drawer.draw_text(Text {
-            text: "Hello".into(),
+            text: &format!("Frames Processed: {}", self.frames_processed),
             position: (0.0, 0.1),
             scale: 40.0,
             color: wgpu::Color::BLACK,

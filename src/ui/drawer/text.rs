@@ -14,7 +14,7 @@ pub struct Text<'a> {
 }
 
 impl<'a> Text<'a> {
-    fn into_section(self, bounds: (f32, f32)) -> Section<'a> {
+    fn into_section(&self, bounds: (f32, f32)) -> Section<'a> {
         Section {
             screen_position: (
                 self.position.0 * bounds.0,
