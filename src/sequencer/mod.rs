@@ -59,14 +59,14 @@ impl Sequencer {
         (sequencer_controller, sequencer)
     }
 
-    fn set_clip(&mut self, sequencer_location: SequencerLocation, clip: Clip) {
-        self.channels[sequencer_location.channel_index]
-            .clips[sequencer_location.channel_location] = clip;
+    fn set_clip(&mut self, index: ChannelItemIndex, clip: Clip) {
+        self.channels[index.channel_index]
+            .clips[index.item_index] = clip;
     }
 
-    fn set_junction(&mut self, sequencer_location: SequencerLocation, junction: Junction) {
-        self.channels[sequencer_location.channel_index]
-            .junctions[sequencer_location.channel_location] = junction;
+    fn set_junction(&mut self, index: ChannelItemIndex, junction: Junction) {
+        self.channels[index.channel_index]
+            .junctions[index.item_index] = junction;
     }
 
     fn set_playhead(&mut self, channel_index: usize, playhead: Playhead) {
@@ -78,11 +78,11 @@ impl Sequencer {
         while let Ok(message) = self.control_message_receiver.pop() {
             use SequencerControlMessage::*;
             match message {
-                SyncClip { sequencer_location, clip } => {
-                    self.set_clip(sequencer_location, clip);
+                SyncClip { index, clip } => {
+                    self.set_clip(index, clip);
                 },
-                SyncJunction { sequencer_location, junction } => {
-                    self.set_junction(sequencer_location, junction);
+                SyncJunction { index, junction } => {
+                    self.set_junction(index, junction);
                 },
                 SyncPlayhead { channel_index, playhead } => {
                     self.set_playhead(channel_index, playhead);
