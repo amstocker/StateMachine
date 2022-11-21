@@ -1,4 +1,4 @@
-use crate::sound::SoundBankIndex;
+use crate::sound::{SoundBankIndex, Float};
 
 pub const MAX_CLIPS_PER_CHANNEL: usize = 32;
 pub const MAX_JUNCTIONS_PER_CHANNEL: usize = 32;
@@ -33,7 +33,7 @@ pub struct Channel {
 }
 
 impl Channel {
-    pub fn step_playhead(&mut self) {
+    pub fn step_playhead_single_frame(&mut self) {
         if self.playhead_override_this_frame {
             self.playhead_override_this_frame = false;
             return;
@@ -61,7 +61,7 @@ impl Channel {
     pub fn is_playing(&self) -> bool {
         match self.playhead.state {
             PlayheadState::Playing => true,
-            PlayheadState::Stopped => false,
+            PlayheadState::Stopped => false
         }
     }
 
@@ -111,11 +111,10 @@ pub struct Clip {
     channel_location_start: u64,
     channel_location_end: u64,
 
-    // Start and end point in sound source
-    // (can be backwards if frame_end < frame_start)
-    // this means dynamic interpolation will be necessary
-    source_frame_start: u64,
-    source_frame_end: u64,
+    // Mapping of source to clip
+    //  - length of clip cannot exceed length of scaled and shifted source
+    source_scale: Float,
+    source_shift: u64
 }
 
 #[derive(Debug, Default, Clone, Copy)]

@@ -9,7 +9,7 @@ use winit::{
 use crate::ui::quad::QuadDrawer;
 use crate::ui::text::TextDrawer;
 
-use super::grid::GridBackground;
+use super::sequencer::GridBackground;
 
 
 pub struct State {
@@ -172,7 +172,7 @@ pub trait Application: 'static + Sized {
                             depth_stencil_attachment: None,
                         });
                         
-                        grid.draw(&mut render_pass);
+                        grid.render(&mut render_pass);
                         quad_drawer.draw_all(&mut render_pass);
                     }
                     text_drawer.draw_all(&mut encoder, view, &mut state);

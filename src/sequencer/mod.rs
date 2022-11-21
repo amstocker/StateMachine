@@ -5,7 +5,7 @@ use rtrb::{Consumer, Producer, RingBuffer};
 
 pub use channel::*;
 pub use event::*;
-use crate::sound::{SoundBank, MAX_SOUNDS, StereoFrame, StereoFrameGenerator, Float};
+use crate::sound::{SoundBank, StereoFrame, StereoFrameGenerator, Float};
 
 
 pub const NUM_CHANNELS: usize = 4;
@@ -19,7 +19,7 @@ pub struct SequencerController {
 pub struct Sequencer {
     control_message_receiver: Consumer<SequencerControlMessage>,
     event_sender: Producer<SequencerEvent>,
-    summary: SequencerState,
+    summary: SequencerSummary,
     channels: [Channel; NUM_CHANNELS],
     playhead_mutations: [PlayheadMutation; NUM_CHANNELS],
     sound_bank: SoundBank<Float>
@@ -59,12 +59,14 @@ impl Sequencer {
         (sequencer_controller, sequencer)
     }
 
-    fn set_clip(&mut self, sequencer_index: SequencerIndex, clip: Clip) {
-        self.channels[sequencer_index.channel].clips[sequencer_index.index] = clip;
+    fn set_clip(&mut self, sequencer_location: SequencerLocation, clip: Clip) {
+        self.channels[sequencer_location.channel_index]
+            .clips[sequencer_location.channel_location] = clip;
     }
 
-    fn set_junction(&mut self, sequencer_index: SequencerIndex, junction: Junction) {
-        self.channels[sequencer_index.channel].junctions[sequencer_index.index] = junction;
+    fn set_junction(&mut self, sequencer_location: SequencerLocation, junction: Junction) {
+        self.channels[sequencer_location.channel_index]
+            .junctions[sequencer_location.channel_location] = junction;
     }
 
     fn set_playhead(&mut self, channel_index: usize, playhead: Playhead) {
@@ -76,11 +78,11 @@ impl Sequencer {
         while let Ok(message) = self.control_message_receiver.pop() {
             use SequencerControlMessage::*;
             match message {
-                SyncClip { sequencer_index: index, clip } => {
-                    self.set_clip(index, clip);
+                SyncClip { sequencer_location, clip } => {
+                    self.set_clip(sequencer_location, clip);
                 },
-                SyncJunction { sequencer_index: index, junction } => {
-                    self.set_junction(index, junction);
+                SyncJunction { sequencer_location, junction } => {
+                    self.set_junction(sequencer_location, junction);
                 },
                 SyncPlayhead { channel_index, playhead } => {
                     self.set_playhead(channel_index, playhead);
@@ -90,11 +92,9 @@ impl Sequencer {
     }
 
     fn update_single_frame(&mut self) {
-        // Update playheads
         for channel in &mut self.channels {
-            channel.step_playhead();
+            channel.step_playhead_single_frame();
         }
-        // Handle junctions
         for i in 0..NUM_CHANNELS {
             let channel = &mut self.channels[i];
             if let Some(junction) = channel.get_current_junction() {
@@ -130,14 +130,13 @@ impl Sequencer {
                 }
             }
         }
-        // Handle playhead mutations
         for i in 0..NUM_CHANNELS {
             if self.playhead_mutations[i].updated_this_frame {
                 self.channels[i].playhead = self.playhead_mutations[i].playhead;
                 self.playhead_mutations[i].updated_this_frame = false;
             }
         }
-        // Update summary
+
         self.summary.total_frames_processed += 1;
         for i in 0..NUM_CHANNELS {
             self.summary.playheads[i] = self.channels[i].playhead;

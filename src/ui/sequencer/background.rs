@@ -72,7 +72,7 @@ impl GridBackground {
         }
     }
 
-    pub fn draw<'a>(&'a self, render_pass: &mut RenderPass<'a>) {
+    pub fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>) {
         render_pass.set_pipeline(&self.render_pipeline);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.draw(0..(BUFFER_LENGTH as u32), 0..1);

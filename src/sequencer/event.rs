@@ -2,19 +2,19 @@ use crate::sequencer::{Clip, Junction, Playhead, NUM_CHANNELS};
 
 
 #[derive(Debug, Clone, Copy)]
-pub struct SequencerIndex {
-    pub channel: usize,
-    pub index: usize
+pub struct SequencerLocation {
+    pub channel_index: usize,
+    pub channel_location: usize
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum SequencerControlMessage {
     SyncClip {
-        sequencer_index: SequencerIndex,
+        sequencer_location: SequencerLocation,
         clip: Clip
     },
     SyncJunction {
-        sequencer_index: SequencerIndex,
+        sequencer_location: SequencerLocation,
         junction: Junction
     },
     SyncPlayhead {
@@ -24,12 +24,12 @@ pub enum SequencerControlMessage {
 }
 
 #[derive(Debug, Default, Clone, Copy)]
-pub struct SequencerState {
+pub struct SequencerSummary {
     pub playheads: [Playhead; NUM_CHANNELS],
     pub total_frames_processed: u64
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum SequencerEvent {
-    Tick(SequencerState)
+    Tick(SequencerSummary)
 }

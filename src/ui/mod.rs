@@ -2,7 +2,7 @@ pub mod fonts;
 pub mod vertex;
 pub mod text;
 pub mod quad;
-pub mod grid;
+pub mod sequencer;
 pub mod mouse;
 pub mod util;
 
