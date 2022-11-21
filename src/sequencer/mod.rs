@@ -19,7 +19,7 @@ pub struct SequencerController {
 pub struct Sequencer {
     control_message_receiver: Consumer<SequencerControlMessage>,
     event_sender: Producer<SequencerEvent>,
-    state_summary: SequencerState,
+    summary: SequencerState,
     channels: [Channel; NUM_CHANNELS],
     sound_bank: SoundBank<Float>
 }
@@ -43,7 +43,7 @@ impl Sequencer {
         let sequencer = Self {
             control_message_receiver,
             event_sender,
-            state_summary: Default::default(),
+            summary: Default::default(),
             channels: Default::default(),
             sound_bank
         };
@@ -60,17 +60,27 @@ impl Sequencer {
     }
 
     fn update(&mut self) {
-        self.handle_control_messsages();
+        // increment active playheads
+        // resolve collisions? maybe not, just let it work itself out
+
+        // should calculate this number as approximately sample_rate / 60
+        self.summary.total_frames_processed += 1;
+        if self.summary.total_frames_processed % 500 == 0 {
+            self.event_sender.push(SequencerEvent::Tick(self.summary)).unwrap();
+        }
     }
+
+    fn sum_output(&mut self) -> StereoFrame<Float> {
+        self.update();
+        StereoFrame::zero()
+    }
+
 }
 
 impl StereoFrameGenerator<Float> for Sequencer {
     fn next_frame(&mut self) -> StereoFrame<Float> {
+        self.handle_control_messsages();
         self.update();
-        self.state_summary.total_frames_processed += 1;
-        if self.state_summary.total_frames_processed % 800 == 0 {
-            self.event_sender.push(SequencerEvent::Tick(self.state_summary)).unwrap();
-        }
-        StereoFrame::zero()
+        self.sum_output()
     }
 }

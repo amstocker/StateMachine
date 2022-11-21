@@ -43,8 +43,7 @@ pub enum JunctionType {
         destination_frame: u64
     },
     Reflect,
-    Stop,
-    #[default] Empty
+    #[default] Stop
 }
 
 #[derive(Default)]
