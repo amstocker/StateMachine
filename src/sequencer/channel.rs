@@ -85,6 +85,7 @@ impl Channel {
         if !self.is_playing() {
             return None;
         }
+        // Can probably cache this data somewhere, cache invalid if playhead 
         for clip in &self.clips {
             if !clip.enabled {
                 continue;

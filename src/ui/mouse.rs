@@ -1,12 +1,38 @@
-use bytemuck::{Pod, Zeroable, cast_slice};
-use wgpu::{Device, BindGroup};
-use winit::dpi::{PhysicalPosition, PhysicalSize};
+use std::default;
 
+use bytemuck::{Pod, Zeroable, cast_slice};
+use wgpu::{Device, BindGroupLayoutEntry, BindGroupEntry, Buffer, Queue};
+use winit::{dpi::{PhysicalPosition, PhysicalSize}, window::CursorIcon};
+
+
+#[derive(Default)]
+pub struct Mouse {
+    position: MousePosition,
+    state: MouseState,
+    locked: bool
+}
+
+#[derive(Default, Clone, Copy)]
+pub enum MouseState {
+    #[default] Default,
+    Grab,
+    Grabbing
+}
+
+impl MouseState {
+    pub fn cursor_icon(&self) -> CursorIcon {
+        match self {
+            MouseState::Default => CursorIcon::Default,
+            MouseState::Grab => CursorIcon::Grab,
+            MouseState::Grabbing => CursorIcon::Grabbing,
+        }
+    }
+}
 
 #[derive(Default, Clone, Copy)]
 pub struct MousePosition {
     pub x: f32,
-    pub y: f32
+    pub y: f32,
 }
 
 impl MousePosition {
@@ -28,43 +54,50 @@ impl Into<MousePositionUniform> for MousePosition {
     }
 }
 
-impl MousePositionUniform {
-    pub fn bind_group(&self, device: &Device) -> BindGroup {
+pub struct MousePositionUniformBuffer {
+    uniform: MousePositionUniform,
+    buffer: Buffer
+}
+
+impl MousePositionUniformBuffer {
+    pub fn new(device: &Device) -> Self {
         use wgpu::util::DeviceExt;
 
-        let mouse_position_buffer = device.create_buffer_init(
+        let uniform = MousePositionUniform([0.0, 0.0]);
+        let buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Mouse Position Buffer"),
-                contents: cast_slice(&[self.0]),
+                contents: cast_slice(&[uniform]),
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             }
         );
-        let mouse_position_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }
-            ],
-            label: Some("Mouse Position Bind Group Layout"),
-        });
-        let mouse_position_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &mouse_position_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: mouse_position_buffer.as_entire_binding(),
-                }
-            ],
-            label: Some("Mouse Position Bind Group"),
-        });
 
-        mouse_position_bind_group
+        Self {
+            uniform,
+            buffer
+        }
+    }
+
+    pub fn write(&self, queue: &Queue) {
+        queue.write_buffer(&self.buffer, 0, cast_slice(&[self.uniform]));
+    }
+
+    pub fn bind_group_entry(&self, device: &Device, binding: u32) -> (BindGroupLayoutEntry, BindGroupEntry) {
+        let bind_group_layout_entry = BindGroupLayoutEntry {
+            binding,
+            visibility: wgpu::ShaderStages::VERTEX,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        };
+        let bing_group_entry = BindGroupEntry {
+            binding,
+            resource: self.buffer.as_entire_binding(),
+        };
+
+        (bind_group_layout_entry, bing_group_entry)
     }
 }

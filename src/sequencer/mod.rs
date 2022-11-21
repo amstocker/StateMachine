@@ -91,10 +91,13 @@ impl Sequencer {
         }
     }
 
-    fn update_single_frame(&mut self) {
+    fn step_playheads_single_frame(&mut self) {
         for channel in &mut self.channels {
             channel.step_playhead_single_frame();
         }
+    }
+
+    fn handle_junctions_single_frame(&mut self) {
         for i in 0..NUM_CHANNELS {
             let channel = &mut self.channels[i];
             if let Some(junction) = channel.get_current_junction() {
@@ -130,23 +133,35 @@ impl Sequencer {
                 }
             }
         }
+    }
+
+    fn handle_playhead_mutations_single_frame(&mut self) {
         for i in 0..NUM_CHANNELS {
             if self.playhead_mutations[i].updated_this_frame {
                 self.channels[i].playhead = self.playhead_mutations[i].playhead;
                 self.playhead_mutations[i].updated_this_frame = false;
             }
         }
+    }
 
+    fn update_summary_single_frame(&mut self) {
         self.summary.total_frames_processed += 1;
         for i in 0..NUM_CHANNELS {
             self.summary.playheads[i] = self.channels[i].playhead;
         }
-
         // Send summary to UI thread at interval
         // (should calculate this number as approximately sample_rate / 60)
         if self.summary.total_frames_processed % 500 == 0 {
             self.event_sender.push(SequencerEvent::Tick(self.summary)).unwrap();
         }
+    }
+
+    fn update_single_frame(&mut self) {
+        self.handle_control_messsages();
+        self.step_playheads_single_frame();
+        self.handle_junctions_single_frame();
+        self.handle_playhead_mutations_single_frame();
+        self.update_summary_single_frame();        
     }
 
     fn sum_output_single_frame(&mut self) -> StereoFrame<Float> {
@@ -164,7 +179,6 @@ impl Sequencer {
 
 impl StereoFrameGenerator<Float> for Sequencer {
     fn next_frame(&mut self) -> StereoFrame<Float> {
-        self.handle_control_messsages();
         self.update_single_frame();
         self.sum_output_single_frame()
     }
