@@ -35,7 +35,7 @@ pub struct TextDrawer {
 
 impl TextDrawer {
     pub fn init(device: &Device, size: (u32, u32), format: TextureFormat) -> Self {
-        let font: FontArc = JETBRAINS_MONO_LIGHT_ITALIC.into();
+        let font: FontArc = JETBRAINS_MONO.into();
         let glyph_brush = GlyphBrushBuilder::using_font(font.clone()).build(device, format);
 
         let mut drawer = Self {

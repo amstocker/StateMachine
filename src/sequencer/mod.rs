@@ -9,6 +9,7 @@ use crate::sound::{SoundBank, MAX_SOUNDS, StereoFrame, StereoFrameGenerator, Flo
 
 
 pub const NUM_CHANNELS: usize = 4;
+const RING_BUFFER_CAPACITY: usize = 1024;
 
 pub struct SequencerController {
     pub control_message_sender: Producer<SequencerControlMessage>,
@@ -18,21 +19,22 @@ pub struct SequencerController {
 pub struct Sequencer {
     control_message_receiver: Consumer<SequencerControlMessage>,
     event_sender: Producer<SequencerEvent>,
-    state: SequencerState,
-    channels: [Channel; NUM_CHANNELS]
+    state_summary: SequencerState,
+    channels: [Channel; NUM_CHANNELS],
+    sound_bank: SoundBank<Float>
 }
 
 impl Sequencer {
-    pub fn new() -> (SequencerController, Self) {
+    pub fn new(sound_bank: SoundBank<Float>) -> (SequencerController, Self) {
         let (
             control_message_sender,
             control_message_receiver
-        ) = RingBuffer::new(1024);
+        ) = RingBuffer::new(RING_BUFFER_CAPACITY);
 
         let (
             event_sender,
             event_receiver
-        ) = RingBuffer::new(1024);
+        ) = RingBuffer::new(RING_BUFFER_CAPACITY);
         
         let sequencer_controller = SequencerController {
             control_message_sender,
@@ -41,28 +43,33 @@ impl Sequencer {
         let sequencer = Self {
             control_message_receiver,
             event_sender,
-            state: Default::default(),
-            channels: Default::default()
+            state_summary: Default::default(),
+            channels: Default::default(),
+            sound_bank
         };
         
         (sequencer_controller, sequencer)
     }
 
-    fn update(&mut self) {
+    fn handle_control_messsages(&mut self) {
         while let Ok(message) = self.control_message_receiver.pop() {
             match message {
 
             }
         }
     }
+
+    fn update(&mut self) {
+        self.handle_control_messsages();
+    }
 }
 
 impl StereoFrameGenerator<Float> for Sequencer {
     fn next_frame(&mut self) -> StereoFrame<Float> {
         self.update();
-        self.state.total_frames_processed += 1;
-        if self.state.total_frames_processed % 800 == 0 {
-            self.event_sender.push(SequencerEvent::Tick(self.state)).unwrap();
+        self.state_summary.total_frames_processed += 1;
+        if self.state_summary.total_frames_processed % 800 == 0 {
+            self.event_sender.push(SequencerEvent::Tick(self.state_summary)).unwrap();
         }
         StereoFrame::zero()
     }

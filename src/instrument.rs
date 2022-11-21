@@ -7,11 +7,12 @@ use crate::ui::mouse::MousePosition;
 use crate::ui::Application;
 use crate::config::InstrumentConfig;
 use crate::sequencer::{SequencerController, Sequencer, SequencerEvent};
-use crate::sound::Output;
+use crate::sound::{Output, SoundBankController, Float, SoundBank};
 
 
 pub struct Instrument {
     sequencer_controller: SequencerController,
+    sound_bank_controller: SoundBankController<Float>,
     _output: Output,
     mouse_position: MousePosition,
     test_quad: Quad,
@@ -25,15 +26,20 @@ impl Application for Instrument {
 
     fn init(config: InstrumentConfig) -> Instrument {
         let (
+            sound_bank_controller,
+            sound_bank
+        ) = SoundBank::new(config.sounds);
+        let (
             sequencer_controller,
             sequencer
-        ) = Sequencer::new();
+        ) = Sequencer::new(sound_bank);
         
         let mut output = Output::new(config.output);
         output.start(sequencer);
 
         Self {
             sequencer_controller,
+            sound_bank_controller,
             _output: output,
             mouse_position: MousePosition::default(),
             test_quad: Quad {

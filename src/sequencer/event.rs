@@ -7,8 +7,14 @@ pub enum SequencerControlMessage {
 }
 
 #[derive(Debug, Default, Clone, Copy)]
+pub struct PlayheadState {
+    enabled: bool,
+    location: u64
+}
+
+#[derive(Debug, Default, Clone, Copy)]
 pub struct SequencerState {
-    pub playhead_locations: [u64; NUM_CHANNELS],
+    pub playheads: [PlayheadState; NUM_CHANNELS],
     pub total_frames_processed: u64
 }
 
