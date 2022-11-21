@@ -40,6 +40,11 @@ impl<S> SoundBankController<S> where S: OutputSample {
     }
 }
 
+pub struct SoundBankIndex {
+    pub source_index: usize,
+    pub frame_index: usize
+}
+
 pub struct SoundBank<S> where S: OutputSample {
     sounds: [Option<Sound<S>>; MAX_SOUNDS],
     consumer: Consumer<SoundBankControlMessage<S>>
@@ -77,10 +82,9 @@ impl<S> SoundBank<S> where S: OutputSample {
         }
     }
 
-    // TODO: remove some checks here?
-    pub fn get_frame(&self, index: usize, frame_index: usize) -> Option<StereoFrame<S>> {
-        if let Some(sound) = &self.sounds[index] {
-            return sound.data.get(frame_index).copied();
+    pub fn get_frame(&self, index: SoundBankIndex) -> Option<StereoFrame<S>> {
+        if let Some(sound) = &self.sounds[index.source_index] {
+            return sound.data.get(index.frame_index).copied();
         }
         None
     }

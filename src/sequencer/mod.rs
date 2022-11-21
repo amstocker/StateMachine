@@ -21,7 +21,14 @@ pub struct Sequencer {
     event_sender: Producer<SequencerEvent>,
     summary: SequencerState,
     channels: [Channel; NUM_CHANNELS],
+    playhead_mutations: [PlayheadMutation; NUM_CHANNELS],
     sound_bank: SoundBank<Float>
+}
+
+#[derive(Debug, Default)]
+struct PlayheadMutation {
+    updated_this_frame: bool,
+    playhead: Playhead
 }
 
 impl Sequencer {
@@ -45,42 +52,121 @@ impl Sequencer {
             event_sender,
             summary: Default::default(),
             channels: Default::default(),
+            playhead_mutations: Default::default(),
             sound_bank
         };
         
         (sequencer_controller, sequencer)
     }
 
+    fn set_clip(&mut self, sequencer_index: SequencerIndex, clip: Clip) {
+        self.channels[sequencer_index.channel].clips[sequencer_index.index] = clip;
+    }
+
+    fn set_junction(&mut self, sequencer_index: SequencerIndex, junction: Junction) {
+        self.channels[sequencer_index.channel].junctions[sequencer_index.index] = junction;
+    }
+
+    fn set_playhead(&mut self, channel_index: usize, playhead: Playhead) {
+        self.channels[channel_index].playhead_override_this_frame = true;
+        self.channels[channel_index].playhead = playhead;
+    }
+
     fn handle_control_messsages(&mut self) {
         while let Ok(message) = self.control_message_receiver.pop() {
+            use SequencerControlMessage::*;
             match message {
-
+                SyncClip { sequencer_index: index, clip } => {
+                    self.set_clip(index, clip);
+                },
+                SyncJunction { sequencer_index: index, junction } => {
+                    self.set_junction(index, junction);
+                },
+                SyncPlayhead { channel_index, playhead } => {
+                    self.set_playhead(channel_index, playhead);
+                }
             }
         }
     }
 
-    fn update(&mut self) {
-        // increment active playheads
-        // resolve collisions? maybe not, just let it work itself out
+    fn update_single_frame(&mut self) {
+        // Update playheads
+        for channel in &mut self.channels {
+            channel.step_playhead();
+        }
+        // Handle junctions
+        for i in 0..NUM_CHANNELS {
+            let channel = &mut self.channels[i];
+            if let Some(junction) = channel.get_current_junction() {
+                match junction.junction_type {
+                    JunctionType::Jump { destination_channel, destination_location, split } => {
+                        self.playhead_mutations[destination_channel] = PlayheadMutation {
+                            updated_this_frame: true,
+                            playhead: Playhead { 
+                                state: PlayheadState::Playing,
+                                location: destination_location,
+                                direction: channel.playhead.direction
+                            }
+                        };
+                        if !split {
+                            channel.stop();
+                        }
+                    },
+                    JunctionType::Reflect => {
+                        self.playhead_mutations[i] = PlayheadMutation {
+                            updated_this_frame: true,
+                            playhead: Playhead { 
+                                direction: match channel.playhead.direction {
+                                    PlayheadDirection::Right => PlayheadDirection::Left,
+                                    PlayheadDirection::Left => PlayheadDirection::Right,
+                                },
+                                ..channel.playhead
+                            }
+                        }
+                    },
+                    JunctionType::Stop => {
 
-        // should calculate this number as approximately sample_rate / 60
+                    },
+                }
+            }
+        }
+        // Handle playhead mutations
+        for i in 0..NUM_CHANNELS {
+            if self.playhead_mutations[i].updated_this_frame {
+                self.channels[i].playhead = self.playhead_mutations[i].playhead;
+                self.playhead_mutations[i].updated_this_frame = false;
+            }
+        }
+        // Update summary
         self.summary.total_frames_processed += 1;
+        for i in 0..NUM_CHANNELS {
+            self.summary.playheads[i] = self.channels[i].playhead;
+        }
+
+        // Send summary to UI thread at interval
+        // (should calculate this number as approximately sample_rate / 60)
         if self.summary.total_frames_processed % 500 == 0 {
             self.event_sender.push(SequencerEvent::Tick(self.summary)).unwrap();
         }
     }
 
-    fn sum_output(&mut self) -> StereoFrame<Float> {
-        self.update();
-        StereoFrame::zero()
+    fn sum_output_single_frame(&mut self) -> StereoFrame<Float> {
+        let mut out_frame = StereoFrame::zero();
+        for channel in &self.channels {
+            if let Some(index) = channel.get_current_sound_bank_index() {
+                if let Some(frame) = self.sound_bank.get_frame(index) {
+                    out_frame += frame;
+                }
+            }
+        } 
+        out_frame
     }
-
 }
 
 impl StereoFrameGenerator<Float> for Sequencer {
     fn next_frame(&mut self) -> StereoFrame<Float> {
         self.handle_control_messsages();
-        self.update();
-        self.sum_output()
+        self.update_single_frame();
+        self.sum_output_single_frame()
     }
 }
