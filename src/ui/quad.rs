@@ -62,7 +62,7 @@ impl QuadInstance {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct Quad {
     pub position: (f32, f32),
     pub size: (f32, f32),
@@ -79,7 +79,7 @@ impl Quad {
     }
 }
 
-impl Into<QuadInstance> for &Quad {
+impl Into<QuadInstance> for Quad {
     fn into(self) -> QuadInstance {
         QuadInstance {
             position: [self.position.0, self.position.1, self.z],
@@ -177,7 +177,7 @@ impl QuadDrawer {
         }
     }
 
-    pub fn draw(&mut self, quad: &Quad) {
+    pub fn draw(&mut self, quad: Quad) {
         self.instances[self.active as usize] = quad.into();
         self.active += 1;
     }

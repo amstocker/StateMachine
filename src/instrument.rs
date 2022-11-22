@@ -37,7 +37,7 @@ impl Application for Instrument {
 
         let mut sequencer_interface = SequencerInterface::init(&state.device, &state.config, sequencer_controller);
         let metadata = sound_bank_controller.get(0).unwrap();
-        sequencer_interface.add_clip(0, Clip {
+        sequencer_interface.add_clip(1, Clip {
             enabled: true,
             source_index: 0,
             channel_location_start: 0,
@@ -59,7 +59,7 @@ impl Application for Instrument {
             WindowEvent::MouseInput { button: MouseButton::Left, state, .. } => {
                 match state {
                     ElementState::Pressed => {
-                        self.sequencer_interface.start_channel(0);
+                        self.sequencer_interface.start_channel(1);
                     },
                     ElementState::Released => {},
                 }

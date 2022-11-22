@@ -102,19 +102,29 @@ impl SequencerInterface {
     pub fn update(&mut self) {
         while let Ok(event) = self.controller.event_receiver.pop() {
             match event {
-                SequencerEvent::Tick(summary) => {
-                    self.summary = summary;
-                }
+                SequencerEvent::Tick(summary) => { self.summary = summary; }
             }
         }
     }
 
     pub fn draw(&self, quad_drawer: &mut QuadDrawer, text_drawer: &mut TextDrawer) {
-        for i in 0..NUM_CHANNELS {
-            let channel = &self.channels[i];
+        for (index, channel) in self.channels.iter().enumerate() {
             for clip in channel.clips.iter().filter(|clip| clip.model.enabled) {
-                quad_drawer.draw(&clip.quad);
+                quad_drawer.draw(clip.quad);
             }
+
+            let playhead = self.summary.playheads[index];
+            match playhead.state {
+                PlayheadState::Playing => {
+                    quad_drawer.draw(playhead_to_quad(
+                        index,
+                        self.channel_length,
+                        self.summary.playheads[index]
+                    ));
+                },
+                PlayheadState::Stopped => {},
+            }
+            
         }
         text_drawer.draw(Text {
             text: &format!("Frames Processed: {}", self.summary.total_frames_processed),
@@ -126,5 +136,18 @@ impl SequencerInterface {
 
     pub fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>) {
         self.background.render(render_pass);
+    }
+}
+
+fn playhead_to_quad(channel_index: usize, channel_length: u64, playhead: Playhead) -> Quad {
+    let w = 0.002;
+    let h = 1.0 / NUM_CHANNELS as f32;
+    let x = playhead.location as f32 / channel_length as f32;
+    let y = 1.0 - h - (channel_index as f32 / NUM_CHANNELS as f32);
+    Quad {
+        position: (x, y),
+        size: (w, h),
+        color: Color::RED,
+        z: 0.0,
     }
 }
