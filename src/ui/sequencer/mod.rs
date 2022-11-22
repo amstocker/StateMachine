@@ -8,7 +8,7 @@ use crate::sequencer::{
     Clip, MAX_CLIPS_PER_CHANNEL,
     Junction, MAX_JUNCTIONS_PER_CHANNEL, 
     SequencerSummary, DEFAULT_CHANNEL_LENGTH, SequencerController, SequencerEvent, SequencerControlMessage,
-    ChannelItemIndex
+    ChannelItemIndex, Playhead, PlayheadState, PlayheadDirection
 };
 
 use super::{quad::{QuadDrawer, Quad}, text::{TextDrawer, Text}};
@@ -64,7 +64,6 @@ impl SequencerInterface {
         let h = 1.0 / NUM_CHANNELS as f32;
         let x = model.channel_location_start as f32 / self.channel_length as f32;
         let y = 1.0 - h - (channel_index as f32 / NUM_CHANNELS as f32);
-        println!("adding quad: x={}, y={}, w={}, h={}", x, y, w, h);
         channel.clips[channel.active_clips] = ClipInterface {
             model,
             quad: Quad {
@@ -74,7 +73,6 @@ impl SequencerInterface {
                 z: 0.0,
             }
         };
-        println!("quad: {:?}", channel.clips[channel.active_clips].quad);
         self.controller.control_message_sender.push(
             SequencerControlMessage::SyncClip {
                 index: ChannelItemIndex {
@@ -86,6 +84,19 @@ impl SequencerInterface {
         ).unwrap();
         channel.active_clips += 1;
         
+    }
+
+    pub fn start_channel(&mut self, channel_index: usize) {
+        self.controller.control_message_sender.push(
+            SequencerControlMessage::SyncPlayhead {
+                index: ChannelItemIndex { channel_index, item_index: 0 },
+                playhead: Playhead {
+                    state: PlayheadState::Playing,
+                    location: 0,
+                    direction: PlayheadDirection::Right,
+                }
+            }
+        ).unwrap();
     }
 
     pub fn update(&mut self) {

@@ -56,6 +56,14 @@ impl Application for Instrument {
 
     fn handle_window_event(&mut self, event: &WindowEvent, window: &Window) {
         match event {
+            WindowEvent::MouseInput { button: MouseButton::Left, state, .. } => {
+                match state {
+                    ElementState::Pressed => {
+                        self.sequencer_interface.start_channel(0);
+                    },
+                    ElementState::Released => {},
+                }
+            }
             _ => {}
         };
     }
