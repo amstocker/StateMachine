@@ -36,10 +36,12 @@ impl Application for Instrument {
         output.start(sequencer);
 
         let mut sequencer_interface = SequencerInterface::init(&state.device, &state.config, sequencer_controller);
-        let metadata = sound_bank_controller.get(0).unwrap();
+
+        let source_index: usize = 1;
+        let metadata = sound_bank_controller.get(source_index).unwrap();
         sequencer_interface.add_clip(1, Clip {
             enabled: true,
-            source_index: 0,
+            source_index,
             channel_location_start: 0,
             channel_location_end: metadata.length as u64,
             source_scale: 1.0,
@@ -55,17 +57,7 @@ impl Application for Instrument {
     }
 
     fn handle_window_event(&mut self, event: &WindowEvent, window: &Window) {
-        match event {
-            WindowEvent::MouseInput { button: MouseButton::Left, state, .. } => {
-                match state {
-                    ElementState::Pressed => {
-                        self.sequencer_interface.start_channel(1);
-                    },
-                    ElementState::Released => {},
-                }
-            }
-            _ => {}
-        };
+        self.sequencer_interface.handle_window_event(event, window);
     }
 
     fn update(&mut self) {

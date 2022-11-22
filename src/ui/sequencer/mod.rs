@@ -2,6 +2,7 @@ mod background;
 
 pub use background::GridBackground;
 use wgpu::{Device, SurfaceConfiguration, RenderPass, Color};
+use winit::{event::{WindowEvent, MouseButton, ElementState}, window::Window};
 
 use crate::sequencer::{
     NUM_CHANNELS,
@@ -54,24 +55,29 @@ impl SequencerInterface {
         }
     }
 
-    pub fn handle_window_event(&mut self) {
-
+    pub fn handle_window_event(&mut self, event: &WindowEvent, window: &Window) {
+        match event {
+            WindowEvent::MouseInput { button: MouseButton::Left, state, .. } => {
+                match state {
+                    ElementState::Pressed => {
+                        self.start_channel(1);
+                    },
+                    ElementState::Released => {},
+                }
+            }
+            _ => {}
+        };
     }
 
     pub fn add_clip(&mut self, channel_index: usize, model: Clip) {
         let channel = &mut self.channels[channel_index];
-        let w = (model.channel_location_end as f32 - model.channel_location_start as f32) / self.channel_length as f32;
-        let h = 1.0 / NUM_CHANNELS as f32;
-        let x = model.channel_location_start as f32 / self.channel_length as f32;
-        let y = 1.0 - h - (channel_index as f32 / NUM_CHANNELS as f32);
         channel.clips[channel.active_clips] = ClipInterface {
             model,
-            quad: Quad {
-                position: (x, y),
-                size: (w, h),
-                color: Color::BLUE,
-                z: 0.0,
-            }
+            quad: clip_to_quad(
+                channel_index,
+                self.channel_length,
+                model
+            )
         };
         self.controller.control_message_sender.push(
             SequencerControlMessage::SyncClip {
@@ -136,6 +142,19 @@ impl SequencerInterface {
 
     pub fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>) {
         self.background.render(render_pass);
+    }
+}
+
+fn clip_to_quad(channel_index: usize, channel_length: u64, clip: Clip) -> Quad {
+    let w = (clip.channel_location_end as f32 - clip.channel_location_start as f32) / channel_length as f32;
+    let h = 1.0 / NUM_CHANNELS as f32;
+    let x = clip.channel_location_start as f32 / channel_length as f32;
+    let y = 1.0 - h - (channel_index as f32 / NUM_CHANNELS as f32);
+    Quad {
+        position: (x, y),
+        size: (w, h),
+        color: Color::BLUE,
+        z: 0.0,
     }
 }
 
