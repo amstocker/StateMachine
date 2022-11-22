@@ -13,7 +13,6 @@ pub use output::*;
 pub use interpolator::*;
 
 
-// Ideally don't need this restriction...
 pub const MAX_SOUNDS: usize = 32;
 
 pub type Float = f32;
@@ -72,6 +71,5 @@ impl<S> Sound<S> where S: OutputSample {
             data: data.into_boxed_slice()
         }
     }
-
 }
 

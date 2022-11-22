@@ -1,10 +1,12 @@
+use wgpu::RenderPass;
 use winit::window::{Window, CursorIcon};
 use winit::event::{WindowEvent, MouseButton, ElementState};
 
 use crate::ui::quad::{Quad, QuadDrawer};
+use crate::ui::sequencer::{SequencerInterface};
 use crate::ui::text::{Text, TextDrawer};
 use crate::ui::mouse::MousePosition;
-use crate::ui::Application;
+use crate::ui::{Application, State};
 use crate::config::InstrumentConfig;
 use crate::sequencer::{SequencerController, Sequencer, SequencerEvent};
 use crate::sound::{Output, SoundBankController, Float, SoundBank};
@@ -12,6 +14,7 @@ use crate::sound::{Output, SoundBankController, Float, SoundBank};
 
 pub struct Instrument {
     sequencer_controller: SequencerController,
+    sequencer_interface: SequencerInterface,
     sound_bank_controller: SoundBankController<Float>,
     _output: Output,
     mouse_position: MousePosition,
@@ -24,7 +27,7 @@ pub struct Instrument {
 impl Application for Instrument {
     type Config = InstrumentConfig;
 
-    fn init(config: InstrumentConfig) -> Instrument {
+    fn init(config: InstrumentConfig, state: &State) -> Instrument {
         let (
             sound_bank_controller,
             sound_bank
@@ -37,8 +40,11 @@ impl Application for Instrument {
         let mut output = Output::new(config.output);
         output.start(sequencer);
 
+        let sequencer_interface = SequencerInterface::init(&state.device, &state.config);
+
         Self {
             sequencer_controller,
+            sequencer_interface,
             sound_bank_controller,
             _output: output,
             mouse_position: MousePosition::default(),
@@ -110,5 +116,9 @@ impl Application for Instrument {
             scale: 30.0,
             color: wgpu::Color::BLACK,
         });
+    }
+
+    fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>) {
+        self.sequencer_interface.render(render_pass);
     }
 }

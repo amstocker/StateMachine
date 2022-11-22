@@ -9,6 +9,8 @@ use crate::sound::{SoundBank, StereoFrame, StereoFrameGenerator, Float};
 
 
 pub const NUM_CHANNELS: usize = 4;
+
+const SYNC_INTERVAL: u64 = 500;  // frames
 const RING_BUFFER_CAPACITY: usize = 1024;
 
 pub struct SequencerController {
@@ -98,12 +100,16 @@ impl Sequencer {
     }
 
     fn handle_junctions_single_frame(&mut self) {
-        for i in 0..NUM_CHANNELS {
-            let channel = &mut self.channels[i];
+        for channel_index in 0..NUM_CHANNELS {
+            let channel = &mut self.channels[channel_index];
             if let Some(junction) = channel.get_current_junction() {
                 match junction.junction_type {
-                    JunctionType::Jump { destination_channel, destination_location, split } => {
-                        self.playhead_mutations[destination_channel] = PlayheadMutation {
+                    JunctionType::Jump {
+                        destination_channel_index,
+                        destination_location,
+                        split
+                    } => {
+                        self.playhead_mutations[destination_channel_index] = PlayheadMutation {
                             updated_this_frame: true,
                             playhead: Playhead { 
                                 state: PlayheadState::Playing,
@@ -116,7 +122,7 @@ impl Sequencer {
                         }
                     },
                     JunctionType::Reflect => {
-                        self.playhead_mutations[i] = PlayheadMutation {
+                        self.playhead_mutations[channel_index] = PlayheadMutation {
                             updated_this_frame: true,
                             playhead: Playhead { 
                                 direction: match channel.playhead.direction {
@@ -128,8 +134,8 @@ impl Sequencer {
                         }
                     },
                     JunctionType::Stop => {
-
-                    },
+                        channel.stop();
+                    }
                 }
             }
         }
@@ -145,19 +151,13 @@ impl Sequencer {
     }
 
     fn update_summary_single_frame(&mut self) {
-        self.summary.total_frames_processed += 1;
         for i in 0..NUM_CHANNELS {
             self.summary.playheads[i] = self.channels[i].playhead;
         }
-        // Send summary to UI thread at interval
-        // (should calculate this number as approximately sample_rate / 60)
-        if self.summary.total_frames_processed % 500 == 0 {
-            self.event_sender.push(SequencerEvent::Tick(self.summary)).unwrap();
-        }
+        self.summary.total_frames_processed += 1;
     }
 
     fn update_single_frame(&mut self) {
-        self.handle_control_messsages();
         self.step_playheads_single_frame();
         self.handle_junctions_single_frame();
         self.handle_playhead_mutations_single_frame();
@@ -175,10 +175,18 @@ impl Sequencer {
         } 
         out_frame
     }
+
+    fn send_summary(&mut self) {
+        self.event_sender.push(SequencerEvent::Tick(self.summary)).unwrap();
+    }
 }
 
 impl StereoFrameGenerator<Float> for Sequencer {
     fn next_frame(&mut self) -> StereoFrame<Float> {
+        if self.summary.total_frames_processed % SYNC_INTERVAL == 0 {
+            self.handle_control_messsages();
+            self.send_summary();
+        }
         self.update_single_frame();
         self.sum_output_single_frame()
     }

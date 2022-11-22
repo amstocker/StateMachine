@@ -85,7 +85,7 @@ impl Channel {
         if !self.is_playing() {
             return None;
         }
-        // Can probably cache this data somewhere, cache invalid if playhead 
+        // Can probably cache this data somewhere, cache invalid if playhead mutated
         for clip in &self.clips {
             if !clip.enabled {
                 continue;
@@ -121,7 +121,7 @@ pub struct Clip {
 #[derive(Debug, Default, Clone, Copy)]
 pub enum JunctionType {
     Jump {
-        destination_channel: usize,
+        destination_channel_index: usize,
         destination_location: u64,
         split: bool
     },

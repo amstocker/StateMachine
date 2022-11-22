@@ -185,7 +185,7 @@ impl QuadDrawer {
         queue.write_buffer(&self.instance_buffer, 0, cast_slice(&[self.instances]));
     }
 
-    pub fn draw_all<'a>(&'a mut self, render_pass: &mut RenderPass<'a>) {
+    pub fn render<'a>(&'a mut self, render_pass: &mut RenderPass<'a>) {
         render_pass.set_pipeline(&self.render_pipeline);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));

@@ -1,4 +1,4 @@
-use wgpu::{util::StagingBelt};
+use wgpu::{util::StagingBelt, RenderPass};
 use winit::{
     window::Window,
     event::*,
@@ -8,8 +8,6 @@ use winit::{
 
 use crate::ui::quad::QuadDrawer;
 use crate::ui::text::TextDrawer;
-
-use super::sequencer::GridBackground;
 
 
 pub struct State {
@@ -90,15 +88,16 @@ pub trait ApplicationConfig {
     fn window_title(&self) -> &str;
 }
 
-
 pub trait Application: 'static + Sized {
     type Config: ApplicationConfig;
 
-    fn init(config: Self::Config) -> Self;
+    fn init(config: Self::Config, state: &State) -> Self;
 
     fn update(&mut self);
 
     fn draw(&self, quad_drawer: &mut QuadDrawer, text_drawer: &mut TextDrawer);
+
+    fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>);
 
     fn handle_window_event(&mut self, event: &WindowEvent, window: &Window);
 
@@ -114,10 +113,9 @@ pub trait Application: 'static + Sized {
 
         let mut quad_drawer = QuadDrawer::init(&state.device, state.config.format);
         let mut text_drawer = TextDrawer::init(&state.device, (state.config.width, state.config.height), state.config.format);
-        let grid = GridBackground::init(&state.device, state.config.format);
         
-        let mut app = Self::init(config);
-    
+        let mut app = Self::init(config, &state);
+
         event_loop.run(move |event, _, control_flow| {
             control_flow.set_poll();
 
@@ -143,14 +141,13 @@ pub trait Application: 'static + Sized {
                     app.handle_window_event(event, &window);
                 },
                 Event::RedrawRequested(window_id) if window_id == window.id() => {
-                    
                     // Update application uniforms
                     app.draw(&mut quad_drawer, &mut text_drawer);
                     
                     // Write to buffer
                     quad_drawer.write(&state.queue);
                     
-                    // Start render pass
+                    // Start render passes
                     let output = state.surface.get_current_texture().unwrap();
                     let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
                 
@@ -158,24 +155,23 @@ pub trait Application: 'static + Sized {
                         label: Some("Render Encoder"),
                     });
                 
-                    {
-                        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                            label: Some("Render Pass"),
-                            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                                view: &view,
-                                resolve_target: None,
-                                ops: wgpu::Operations {
-                                    load: wgpu::LoadOp::Clear(state.clear_color),
-                                    store: true,
-                                },
-                            })],
-                            depth_stencil_attachment: None,
-                        });
-                        
-                        grid.render(&mut render_pass);
-                        quad_drawer.draw_all(&mut render_pass);
-                    }
-                    text_drawer.draw_all(&mut encoder, view, &mut state);
+                    let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("Render Pass"),
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view: &view,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(state.clear_color),
+                                store: true,
+                            },
+                        })],
+                        depth_stencil_attachment: None,
+                    });
+                    app.render(&mut render_pass);
+                    quad_drawer.render(&mut render_pass);
+                    
+                    drop(render_pass);
+                    text_drawer.render(&mut encoder, view, &mut state);
                 
                     state.staging_belt.finish();
                     state.queue.submit(std::iter::once(encoder.finish()));

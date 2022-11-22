@@ -55,7 +55,7 @@ impl TextDrawer {
         self.glyph_brush.queue(text.into_section(self.bounds));
     }
 
-    pub fn draw_all(&mut self, encoder: &mut CommandEncoder, view: TextureView, gpu_state: &mut State) {
+    pub fn render(&mut self, encoder: &mut CommandEncoder, view: TextureView, gpu_state: &mut State) {
         self.glyph_brush
             .draw_queued(
                 &gpu_state.device,

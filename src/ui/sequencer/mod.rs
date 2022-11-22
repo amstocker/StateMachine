@@ -6,7 +6,8 @@ use wgpu::{Device, SurfaceConfiguration, RenderPass};
 use crate::sequencer::{
     NUM_CHANNELS,
     Clip, MAX_CLIPS_PER_CHANNEL,
-    Junction, MAX_JUNCTIONS_PER_CHANNEL,
+    Junction, MAX_JUNCTIONS_PER_CHANNEL, 
+    SequencerSummary
 };
 
 use super::{quad::QuadDrawer, text::TextDrawer};
@@ -29,6 +30,7 @@ pub struct ChannelInterface {
 
 pub struct SequencerInterface {
     channels: [ChannelInterface; NUM_CHANNELS],
+    summary: SequencerSummary,
     background: GridBackground
 }
 
@@ -39,6 +41,7 @@ impl SequencerInterface {
         // need global transform uniform
         Self {
             channels: Default::default(),
+            summary: Default::default(),
             background
         }
     }
