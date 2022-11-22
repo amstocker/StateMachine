@@ -62,6 +62,7 @@ impl QuadInstance {
     }
 }
 
+#[derive(Debug, Default)]
 pub struct Quad {
     pub position: (f32, f32),
     pub size: (f32, f32),

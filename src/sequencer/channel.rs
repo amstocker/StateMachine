@@ -105,17 +105,17 @@ impl Channel {
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Clip {
-    enabled: bool,
-    source_index: usize,
+    pub enabled: bool,
+    pub source_index: usize,
 
     // Start and end point in terms of realtime frames
-    channel_location_start: u64,
-    channel_location_end: u64,
+    pub channel_location_start: u64,
+    pub channel_location_end: u64,
 
     // Mapping of source to clip
     //  - length of clip cannot exceed length of scaled and shifted source
-    source_scale: Float,
-    source_shift: u64
+    pub source_scale: Float,
+    pub source_shift: u64
 }
 
 #[derive(Debug, Default, Clone, Copy)]

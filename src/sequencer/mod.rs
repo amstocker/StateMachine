@@ -9,6 +9,7 @@ use crate::sound::{SoundBank, StereoFrame, StereoFrameGenerator, Float};
 
 
 pub const NUM_CHANNELS: usize = 4;
+pub const DEFAULT_CHANNEL_LENGTH: u64 = 500_000;
 
 const SYNC_INTERVAL: u64 = 500;  // frames
 const RING_BUFFER_CAPACITY: usize = 1024;
@@ -49,11 +50,16 @@ impl Sequencer {
             control_message_sender,
             event_receiver
         };
+
+        let mut channels: [Channel; NUM_CHANNELS] = Default::default();
+        for i in 0..NUM_CHANNELS {
+            channels[i].length = DEFAULT_CHANNEL_LENGTH;
+        }
         let sequencer = Self {
             control_message_receiver,
             event_sender,
             summary: Default::default(),
-            channels: Default::default(),
+            channels,
             playhead_mutations: Default::default(),
             sound_bank
         };
@@ -71,9 +77,9 @@ impl Sequencer {
             .junctions[index.item_index] = junction;
     }
 
-    fn set_playhead(&mut self, channel_index: usize, playhead: Playhead) {
-        self.channels[channel_index].playhead_override_this_frame = true;
-        self.channels[channel_index].playhead = playhead;
+    fn set_playhead(&mut self, index: ChannelItemIndex, playhead: Playhead) {
+        self.channels[index.channel_index].playhead_override_this_frame = true;
+        self.channels[index.channel_index].playhead = playhead;
     }
 
     fn handle_control_messsages(&mut self) {
@@ -86,8 +92,8 @@ impl Sequencer {
                 SyncJunction { index, junction } => {
                     self.set_junction(index, junction);
                 },
-                SyncPlayhead { channel_index, playhead } => {
-                    self.set_playhead(channel_index, playhead);
+                SyncPlayhead { index, playhead } => {
+                    self.set_playhead(index, playhead);
                 }
             }
         }
@@ -158,6 +164,7 @@ impl Sequencer {
     }
 
     fn update_single_frame(&mut self) {
+        self.sound_bank.update();
         self.step_playheads_single_frame();
         self.handle_junctions_single_frame();
         self.handle_playhead_mutations_single_frame();
@@ -172,7 +179,7 @@ impl Sequencer {
                     out_frame += frame;
                 }
             }
-        } 
+        }
         out_frame
     }
 

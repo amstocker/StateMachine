@@ -18,7 +18,7 @@ pub enum SequencerControlMessage {
         junction: Junction
     },
     SyncPlayhead {
-        channel_index: usize,
+        index: ChannelItemIndex,
         playhead: Playhead
     }
 }

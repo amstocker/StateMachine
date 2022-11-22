@@ -1,20 +1,22 @@
 mod background;
 
 pub use background::GridBackground;
-use wgpu::{Device, SurfaceConfiguration, RenderPass};
+use wgpu::{Device, SurfaceConfiguration, RenderPass, Color};
 
 use crate::sequencer::{
     NUM_CHANNELS,
     Clip, MAX_CLIPS_PER_CHANNEL,
     Junction, MAX_JUNCTIONS_PER_CHANNEL, 
-    SequencerSummary
+    SequencerSummary, DEFAULT_CHANNEL_LENGTH, SequencerController, SequencerEvent, SequencerControlMessage,
+    ChannelItemIndex
 };
 
-use super::{quad::QuadDrawer, text::TextDrawer};
+use super::{quad::{QuadDrawer, Quad}, text::{TextDrawer, Text}};
 
 #[derive(Default)]
 pub struct ClipInterface {
-    model: Clip
+    model: Clip,
+    quad: Quad
 }
 
 #[derive(Default)]
@@ -25,24 +27,30 @@ pub struct JunctionInterface {
 #[derive(Default)]
 pub struct ChannelInterface {
     clips: [ClipInterface; MAX_CLIPS_PER_CHANNEL],
-    junctions: [JunctionInterface; MAX_JUNCTIONS_PER_CHANNEL]
+    junctions: [JunctionInterface; MAX_JUNCTIONS_PER_CHANNEL],
+    active_clips: usize,
+    active_junctions: usize,
 }
 
 pub struct SequencerInterface {
+    controller: SequencerController,
     channels: [ChannelInterface; NUM_CHANNELS],
     summary: SequencerSummary,
-    background: GridBackground
+    background: GridBackground,
+    channel_length: u64
 }
 
 impl SequencerInterface {
-    pub fn init(device: &Device, config: &SurfaceConfiguration) -> Self {
+    pub fn init(device: &Device, config: &SurfaceConfiguration, controller: SequencerController) -> Self {
         let background = GridBackground::init(device, config.format);
 
         // need global transform uniform
         Self {
+            controller,
             channels: Default::default(),
             summary: Default::default(),
-            background
+            background,
+            channel_length: DEFAULT_CHANNEL_LENGTH
         }
     }
 
@@ -50,8 +58,59 @@ impl SequencerInterface {
 
     }
 
-    pub fn draw(&self, quad_drawer: &QuadDrawer, text_drawer: &TextDrawer) {
+    pub fn add_clip(&mut self, channel_index: usize, model: Clip) {
+        let channel = &mut self.channels[channel_index];
+        let w = (model.channel_location_end as f32 - model.channel_location_start as f32) / self.channel_length as f32;
+        let h = 1.0 / NUM_CHANNELS as f32;
+        let x = model.channel_location_start as f32 / self.channel_length as f32;
+        let y = 1.0 - h - (channel_index as f32 / NUM_CHANNELS as f32);
+        println!("adding quad: x={}, y={}, w={}, h={}", x, y, w, h);
+        channel.clips[channel.active_clips] = ClipInterface {
+            model,
+            quad: Quad {
+                position: (x, y),
+                size: (w, h),
+                color: Color::BLUE,
+                z: 0.0,
+            }
+        };
+        println!("quad: {:?}", channel.clips[channel.active_clips].quad);
+        self.controller.control_message_sender.push(
+            SequencerControlMessage::SyncClip {
+                index: ChannelItemIndex {
+                    channel_index,
+                    item_index: channel.active_clips
+                },
+                clip: model
+            }
+        ).unwrap();
+        channel.active_clips += 1;
+        
+    }
 
+    pub fn update(&mut self) {
+        while let Ok(event) = self.controller.event_receiver.pop() {
+            match event {
+                SequencerEvent::Tick(summary) => {
+                    self.summary = summary;
+                }
+            }
+        }
+    }
+
+    pub fn draw(&self, quad_drawer: &mut QuadDrawer, text_drawer: &mut TextDrawer) {
+        for i in 0..NUM_CHANNELS {
+            let channel = &self.channels[i];
+            for clip in channel.clips.iter().filter(|clip| clip.model.enabled) {
+                quad_drawer.draw(&clip.quad);
+            }
+        }
+        text_drawer.draw(Text {
+            text: &format!("Frames Processed: {}", self.summary.total_frames_processed),
+            position: (0.0, 1.0),
+            scale: 30.0,
+            color: wgpu::Color::BLACK,
+        });
     }
 
     pub fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>) {
