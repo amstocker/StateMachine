@@ -67,6 +67,12 @@ pub enum StereoChannel {
 #[derive(Debug, Clone, Copy)]
 pub struct StereoFrame<S>(pub S, pub S) where S: OutputSample;
 
+impl<S> Default for StereoFrame<S> where S: OutputSample {
+    fn default() -> Self {
+        Self::zero()    
+    }
+}
+
 impl<S> StereoFrame<S> where S: OutputSample {
     #[inline]
     pub fn zero() -> StereoFrame<S> {

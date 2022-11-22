@@ -114,29 +114,34 @@ impl SequencerInterface {
     }
 
     pub fn draw(&self, quad_drawer: &mut QuadDrawer, text_drawer: &mut TextDrawer) {
-        for (index, channel) in self.channels.iter().enumerate() {
+        for (channel_index, channel) in self.channels.iter().enumerate() {
             for clip in channel.clips.iter().filter(|clip| clip.model.enabled) {
                 quad_drawer.draw(clip.quad);
             }
 
-            let playhead = self.summary.playheads[index];
+            let playhead = self.summary.playheads[channel_index];
             match playhead.state {
                 PlayheadState::Playing => {
                     quad_drawer.draw(playhead_to_quad(
-                        index,
+                        channel_index,
                         self.channel_length,
-                        self.summary.playheads[index]
+                        self.summary.playheads[channel_index]
                     ));
                 },
                 PlayheadState::Stopped => {},
             }
-            
+            text_drawer.draw(Text {
+                text: &format!("{:?}", playhead),
+                position: (0.3, (NUM_CHANNELS as f32 - channel_index as f32) / NUM_CHANNELS as f32),
+                scale: 30.0,
+                color: Color::BLACK
+            })
         }
         text_drawer.draw(Text {
             text: &format!("Frames Processed: {}", self.summary.total_frames_processed),
             position: (0.0, 1.0),
             scale: 30.0,
-            color: wgpu::Color::BLACK,
+            color: Color::BLACK,
         });
     }
 

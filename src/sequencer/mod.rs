@@ -52,8 +52,8 @@ impl Sequencer {
         };
 
         let mut channels: [Channel; NUM_CHANNELS] = Default::default();
-        for i in 0..NUM_CHANNELS {
-            channels[i].length = DEFAULT_CHANNEL_LENGTH;
+        for channel in channels.iter_mut() {
+            channel.length = DEFAULT_CHANNEL_LENGTH;
         }
         let sequencer = Self {
             control_message_receiver,
@@ -106,8 +106,7 @@ impl Sequencer {
     }
 
     fn handle_junctions_single_frame(&mut self) {
-        for channel_index in 0..NUM_CHANNELS {
-            let channel = &mut self.channels[channel_index];
+        for (channel_index, channel) in self.channels.iter_mut().enumerate() {
             if let Some(junction) = channel.get_current_junction() {
                 match junction.junction_type {
                     JunctionType::Jump {
@@ -148,17 +147,19 @@ impl Sequencer {
     }
 
     fn handle_playhead_mutations_single_frame(&mut self) {
-        for i in 0..NUM_CHANNELS {
-            if self.playhead_mutations[i].updated_this_frame {
-                self.channels[i].playhead = self.playhead_mutations[i].playhead;
-                self.playhead_mutations[i].updated_this_frame = false;
+        for (channel, mutation) in self.channels.iter_mut()
+            .zip(self.playhead_mutations.iter_mut())
+        {
+            if mutation.updated_this_frame {
+                channel.playhead = mutation.playhead;
+                mutation.updated_this_frame = false;
             }
         }
     }
 
     fn update_summary_single_frame(&mut self) {
-        for i in 0..NUM_CHANNELS {
-            self.summary.playheads[i] = self.channels[i].playhead;
+        for (index, playhead) in self.channels.iter_mut().map(|c| c.playhead).enumerate() {
+            self.summary.playheads[index] = playhead;
         }
         self.summary.total_frames_processed += 1;
     }
@@ -174,11 +175,11 @@ impl Sequencer {
     fn sum_output_single_frame(&mut self) -> StereoFrame<Float> {
         let mut out_frame = StereoFrame::zero();
         for channel in &self.channels {
-            if let Some(index) = channel.get_current_sound_bank_index() {
-                if let Some(frame) = self.sound_bank.get_frame(index) {
-                    out_frame += frame;
-                }
-            }
+            out_frame += channel.get_current_sound_bank_index()
+                                .and_then(
+                                    |index| self.sound_bank.get_frame(index)
+                                )
+                                .unwrap_or_default();
         }
         out_frame
     }
