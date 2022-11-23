@@ -2,7 +2,7 @@ mod background;
 
 pub use background::GridBackground;
 use wgpu::{Device, SurfaceConfiguration, RenderPass, Color};
-use winit::{event::{WindowEvent, MouseButton, ElementState}, window::Window};
+use winit::{event::{WindowEvent, MouseButton, ElementState}, window::{Window, CursorIcon}};
 
 use crate::sequencer::{
     NUM_CHANNELS,
@@ -14,13 +14,13 @@ use crate::sequencer::{
 
 use super::{quad::{QuadDrawer, Quad}, text::{TextDrawer, Text}, mouse::MousePosition};
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct ClipInterface {
     model: Clip,
     quad: Quad
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct JunctionInterface {
     model: Junction
 }
@@ -40,8 +40,13 @@ pub struct SequencerInterface {
     background: GridBackground,
     channel_length: u64,
     mouse_position: MousePosition,
-    channel_index_hover: usize,
-    channel_location_hover: u64
+    hover_channel_index: usize,
+    hover_channel_location: u64,
+    hover_clip_index: Option<usize>,
+    grabbing: bool,
+    grab_channel_index: usize,
+    grab_clip_index: usize,
+    grab_rel_location: u64
 }
 
 impl SequencerInterface {
@@ -56,35 +61,116 @@ impl SequencerInterface {
             background,
             channel_length: DEFAULT_CHANNEL_LENGTH,
             mouse_position: MousePosition::default(),
-            channel_index_hover: 0,
-            channel_location_hover: 0
+            hover_channel_index: 0,
+            hover_channel_location: 0,
+            hover_clip_index: None,
+            grabbing: false,
+            grab_channel_index: 0,
+            grab_clip_index: 0,
+            grab_rel_location: 0
         }
     }
 
     pub fn handle_window_event(&mut self, event: &WindowEvent, window: &Window) {
         match event {
             WindowEvent::MouseInput { button, state, .. } => {
-                match state {
-                    ElementState::Pressed => {
-                        self.set_playhead(self.channel_index_hover, Playhead {
-                            state: PlayheadState::Playing,
-                            location: self.channel_location_hover,
-                            direction: match button {
-                                MouseButton::Left => PlayheadDirection::Right,
-                                _ => PlayheadDirection::Left
-                            },
-                        });
-                    },
-                    _ => {},
+                if let Some(clip_index) = self.hover_clip_index {
+                    match (button, state) {
+                        (MouseButton::Left, ElementState::Pressed) => {
+                            self.handle_clip_grab();
+                        },
+                        (MouseButton::Left, ElementState::Released) => {
+                            self.handle_clip_drop();
+                        },
+                        _ => {}
+                    }
+                } else {
+                    // below is temp
+                    match state {
+                        ElementState::Pressed => {
+                            self.set_playhead(self.hover_channel_index, Playhead {
+                                state: PlayheadState::Playing,
+                                location: self.hover_channel_location,
+                                direction: match button {
+                                    MouseButton::Left => PlayheadDirection::Right,
+                                    _ => PlayheadDirection::Left
+                                },
+                            });
+                        },
+                        _ => {},
+                    }
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
                 self.mouse_position = MousePosition::from_physical(position, window.inner_size());
-                self.channel_index_hover = NUM_CHANNELS - 1 - (self.mouse_position.y * 4.0).floor() as usize;
-                self.channel_location_hover = (self.channel_length as f32 * self.mouse_position.x).floor() as u64;
+                self.hover_channel_index = NUM_CHANNELS - 1 - (self.mouse_position.y * 4.0).floor() as usize;
+                self.hover_channel_location = (self.channel_length as f32 * self.mouse_position.x).floor() as u64;
+                if self.grabbing {
+                    self.handle_clip_move();
+                } else {
+                    self.check_hover_clip();
+                }
             }
             _ => {}
         };
+        self.update_cursor_icon(window);
+    }
+
+    pub fn update_cursor_icon(&self, window: &Window) {
+        if !self.grabbing {
+            if self.hover_clip_index.is_some() {
+                window.set_cursor_icon(CursorIcon::Grab);
+            } else {
+                window.set_cursor_icon(CursorIcon::Default);
+            }
+        } else {
+            window.set_cursor_icon(CursorIcon::Grabbing);
+        }
+    }
+
+    pub fn handle_clip_grab(&mut self) {
+        self.grabbing = true;
+        self.grab_channel_index = self.hover_channel_index;
+        self.grab_clip_index = self.hover_clip_index.unwrap();
+        
+        let clip = &mut self.channels[self.grab_channel_index].clips[self.grab_clip_index];
+        self.grab_rel_location = self.hover_channel_location - clip.model.channel_location_start;
+    }
+
+    pub fn handle_clip_move(&mut self) {
+        let clip = &mut self.channels[self.grab_channel_index].clips[self.grab_clip_index];
+        let width = clip.model.channel_location_end - clip.model.channel_location_start;
+        clip.model.channel_location_start = self.hover_channel_location - self.grab_rel_location;
+        clip.model.channel_location_end = self.hover_channel_location - self.grab_rel_location + width;
+        clip.quad = clip_to_quad(
+            self.grab_channel_index,
+            self.channel_length,
+            clip.model
+        );
+        self.controller.control_message_sender.push(
+            SequencerControlMessage::SyncClip {
+                index: ChannelItemIndex {
+                    channel_index: self.grab_channel_index,
+                    item_index: self.grab_clip_index
+                },
+                clip: clip.model
+            }
+        ).unwrap();
+    }
+
+    pub fn handle_clip_drop(&mut self) {
+        self.grabbing = false;
+    }
+
+    pub fn check_hover_clip(&mut self) {
+        let channel = &self.channels[self.hover_channel_index];
+        for clip_index in 0..channel.active_clips {
+            if channel.clips[clip_index].quad.contains(self.mouse_position) {
+                self.hover_clip_index = Some(clip_index);
+                return;
+            }
+        }
+        self.hover_clip_index = None;
     }
 
     pub fn add_clip(&mut self, channel_index: usize, model: Clip) {
