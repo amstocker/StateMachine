@@ -12,7 +12,7 @@ use crate::sequencer::{
     ChannelItemIndex, Playhead, PlayheadState, PlayheadDirection
 };
 
-use super::{quad::{QuadDrawer, Quad}, text::{TextDrawer, Text}};
+use super::{quad::{QuadDrawer, Quad}, text::{TextDrawer, Text}, mouse::MousePosition};
 
 #[derive(Default)]
 pub struct ClipInterface {
@@ -38,7 +38,10 @@ pub struct SequencerInterface {
     channels: [ChannelInterface; NUM_CHANNELS],
     summary: SequencerSummary,
     background: GridBackground,
-    channel_length: u64
+    channel_length: u64,
+    mouse_position: MousePosition,
+    channel_index_hover: usize,
+    channel_location_hover: u64
 }
 
 impl SequencerInterface {
@@ -51,19 +54,34 @@ impl SequencerInterface {
             channels: Default::default(),
             summary: Default::default(),
             background,
-            channel_length: DEFAULT_CHANNEL_LENGTH
+            channel_length: DEFAULT_CHANNEL_LENGTH,
+            mouse_position: MousePosition::default(),
+            channel_index_hover: 0,
+            channel_location_hover: 0
         }
     }
 
     pub fn handle_window_event(&mut self, event: &WindowEvent, window: &Window) {
         match event {
-            WindowEvent::MouseInput { button: MouseButton::Left, state, .. } => {
+            WindowEvent::MouseInput { button, state, .. } => {
                 match state {
                     ElementState::Pressed => {
-                        self.start_channel(1);
+                        self.set_playhead(self.channel_index_hover, Playhead {
+                            state: PlayheadState::Playing,
+                            location: self.channel_location_hover,
+                            direction: match button {
+                                MouseButton::Left => PlayheadDirection::Right,
+                                _ => PlayheadDirection::Left
+                            },
+                        });
                     },
-                    ElementState::Released => {},
+                    _ => {},
                 }
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                self.mouse_position = MousePosition::from_physical(position, window.inner_size());
+                self.channel_index_hover = NUM_CHANNELS - 1 - (self.mouse_position.y * 4.0).floor() as usize;
+                self.channel_location_hover = (self.channel_length as f32 * self.mouse_position.x).floor() as u64;
             }
             _ => {}
         };
@@ -92,17 +110,27 @@ impl SequencerInterface {
         
     }
 
-    pub fn start_channel(&mut self, channel_index: usize) {
+    pub fn set_playhead(&mut self, channel_index: usize, playhead: Playhead) {
         self.controller.control_message_sender.push(
             SequencerControlMessage::SyncPlayhead {
-                index: ChannelItemIndex { channel_index, item_index: 0 },
-                playhead: Playhead {
-                    state: PlayheadState::Playing,
-                    location: 0,
-                    direction: PlayheadDirection::Right,
-                }
+                index: ChannelItemIndex {
+                    channel_index,
+                    item_index: 0
+                },
+                playhead
             }
         ).unwrap();
+    }
+
+    pub fn start_channel(&mut self, channel_index: usize) {
+        self.set_playhead(
+            channel_index,
+            Playhead {
+                state: PlayheadState::Playing,
+                location: 0,
+                direction: PlayheadDirection::Right,
+            }
+        );
     }
 
     pub fn update(&mut self) {

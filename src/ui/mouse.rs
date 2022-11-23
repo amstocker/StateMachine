@@ -5,14 +5,14 @@ use wgpu::{Device, BindGroupLayoutEntry, BindGroupEntry, Buffer, Queue};
 use winit::{dpi::{PhysicalPosition, PhysicalSize}, window::CursorIcon};
 
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Mouse {
     position: MousePosition,
     state: MouseState,
     locked: bool
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy)]
 pub enum MouseState {
     #[default] Default,
     Grab,
@@ -29,7 +29,7 @@ impl MouseState {
     }
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct MousePosition {
     pub x: f32,
     pub y: f32,

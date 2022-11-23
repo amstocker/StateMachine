@@ -158,8 +158,8 @@ impl Sequencer {
     }
 
     fn update_summary_single_frame(&mut self) {
-        for (index, playhead) in self.channels.iter_mut().map(|c| c.playhead).enumerate() {
-            self.summary.playheads[index] = playhead;
+        for (channel, playhead) in self.channels.iter().zip(self.summary.playheads.iter_mut()) {
+            *playhead = channel.playhead;
         }
         self.summary.total_frames_processed += 1;
     }

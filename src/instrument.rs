@@ -48,6 +48,28 @@ impl Application for Instrument {
             source_shift: 0,
         });
 
+        let source_index: usize = 2;
+        let metadata = sound_bank_controller.get(source_index).unwrap();
+        sequencer_interface.add_clip(2, Clip {
+            enabled: true,
+            source_index,
+            channel_location_start: 10_000,
+            channel_location_end: 10_000 + metadata.length as u64,
+            source_scale: 1.0,
+            source_shift: 0,
+        });
+
+        let source_index: usize = 0;
+        let metadata = sound_bank_controller.get(source_index).unwrap();
+        sequencer_interface.add_clip(3, Clip {
+            enabled: true,
+            source_index,
+            channel_location_start: 30_000,
+            channel_location_end: 30_000 + metadata.length as u64,
+            source_scale: 1.0,
+            source_shift: 0,
+        });
+
         Self {
             sequencer_interface,
             sound_bank_controller,
