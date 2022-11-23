@@ -5,22 +5,22 @@ use crate::ui::{fonts::*, State};
 use crate::ui::util::color_to_f32_array;
 
 
-pub struct Text<'a> {
-    pub text: &'a str,
+pub struct Text {
+    pub text: String,
     pub position: (f32, f32),
     pub scale: f32,
     pub color: Color
 }
 
-impl<'a> Text<'a> {
-    fn into_section(&self, bounds: (f32, f32)) -> Section<'a> {
+impl Text {
+    fn into_section(&self, bounds: (f32, f32)) -> Section {
         Section {
             screen_position: (
                 self.position.0 * bounds.0,
                 (1.0 - self.position.1) * bounds.1
             ),
             bounds,
-            text: vec![wgpu_glyph::Text::new(self.text)
+            text: vec![wgpu_glyph::Text::new(&self.text)
                 .with_color(color_to_f32_array(self.color))
                 .with_scale(self.scale)],
             ..Section::default()
@@ -51,7 +51,7 @@ impl TextDrawer {
         self.bounds = (size.0 as f32, size.1 as f32);
     }
 
-    pub fn draw(&mut self, text: Text) {
+    pub fn draw(&mut self, text: &Text) {
         self.glyph_brush.queue(text.into_section(self.bounds));
     }
 

@@ -8,5 +8,8 @@ pub use vertex::*;
 
 
 pub enum Primitive {
-
+    Quad(Quad),
+    Text(Text),
+    Line,
+    Mesh
 }

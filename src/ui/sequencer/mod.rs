@@ -247,15 +247,15 @@ impl SequencerInterface {
                 },
                 _ => {},
             }
-            text_drawer.draw(Text {
-                text: &format!("{:?}", playhead),
+            text_drawer.draw(&Text {
+                text: format!("{:?}", playhead),
                 position: (0.3, (NUM_CHANNELS as f32 - channel_index as f32) / NUM_CHANNELS as f32),
                 scale: 30.0,
                 color: Color::BLACK
             })
         }
-        text_drawer.draw(Text {
-            text: &format!("Frames Processed: {}", self.summary.total_frames_processed),
+        text_drawer.draw(&Text {
+            text: format!("Frames Processed: {}", self.summary.total_frames_processed),
             position: (0.0, 1.0),
             scale: 30.0,
             color: Color::BLACK,
