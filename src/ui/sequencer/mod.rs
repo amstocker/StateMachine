@@ -74,7 +74,7 @@ impl SequencerInterface {
     pub fn handle_window_event(&mut self, event: &WindowEvent, window: &Window) {
         match event {
             WindowEvent::MouseInput { button, state, .. } => {
-                if let Some(clip_index) = self.hover_clip_index {
+                if self.hover_clip_index.is_some() {
                     match (button, state) {
                         (MouseButton::Left, ElementState::Pressed) => {
                             self.handle_clip_grab();
@@ -85,7 +85,6 @@ impl SequencerInterface {
                         _ => {}
                     }
                 } else {
-                    // below is temp
                     match state {
                         ElementState::Pressed => {
                             self.set_playhead(self.hover_channel_index, Playhead {
@@ -108,7 +107,7 @@ impl SequencerInterface {
                 if self.grabbing {
                     self.handle_clip_move();
                 } else {
-                    self.check_hover_clip();
+                    self.check_clip_hover();
                 }
             }
             _ => {}
@@ -140,8 +139,11 @@ impl SequencerInterface {
     pub fn handle_clip_move(&mut self) {
         let clip = &mut self.channels[self.grab_channel_index].clips[self.grab_clip_index];
         let width = clip.model.channel_location_end - clip.model.channel_location_start;
-        clip.model.channel_location_start = self.hover_channel_location - self.grab_rel_location;
-        clip.model.channel_location_end = self.hover_channel_location - self.grab_rel_location + width;
+        let start = self.hover_channel_location
+            .saturating_sub(self.grab_rel_location)
+            .min(self.channel_length - width);
+        clip.model.channel_location_start  = start;
+        clip.model.channel_location_end = start + width;
         clip.quad = clip_to_quad(
             self.grab_channel_index,
             self.channel_length,
@@ -162,7 +164,7 @@ impl SequencerInterface {
         self.grabbing = false;
     }
 
-    pub fn check_hover_clip(&mut self) {
+    pub fn check_clip_hover(&mut self) {
         let channel = &self.channels[self.hover_channel_index];
         for clip_index in 0..channel.active_clips {
             if channel.clips[clip_index].quad.contains(self.mouse_position) {
