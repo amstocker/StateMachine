@@ -6,8 +6,7 @@ use winit::{
     window::WindowBuilder,
 };
 
-use crate::ui::quad::QuadDrawer;
-use crate::ui::text::TextDrawer;
+use crate::ui::primitive::{QuadDrawer, TextDrawer};
 
 
 pub struct State {

@@ -2,9 +2,8 @@ use wgpu::RenderPass;
 use winit::window::{Window, CursorIcon};
 use winit::event::{WindowEvent, MouseButton, ElementState};
 
-use crate::ui::quad::{Quad, QuadDrawer};
+use crate::ui::primitive::{Quad, QuadDrawer, Text, TextDrawer};
 use crate::ui::sequencer::{SequencerInterface};
-use crate::ui::text::{Text, TextDrawer};
 use crate::ui::mouse::MousePosition;
 use crate::ui::{Application, State};
 use crate::config::InstrumentConfig;

@@ -11,7 +11,7 @@ use crate::sound::{SoundBank, StereoFrame, StereoFrameGenerator, Float};
 pub const NUM_CHANNELS: usize = 4;
 pub const DEFAULT_CHANNEL_LENGTH: u64 = 500_000;
 
-const SYNC_INTERVAL: u64 = 500;  // frames
+const SYNC_INTERVAL: u64 = 256;  // frames
 const RING_BUFFER_CAPACITY: usize = 1024;
 
 pub struct SequencerController {

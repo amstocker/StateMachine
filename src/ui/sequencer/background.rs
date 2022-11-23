@@ -3,7 +3,7 @@ use wgpu::{TextureFormat, Device, include_wgsl, Buffer, RenderPipeline, RenderPa
 
 use crate::sequencer::NUM_CHANNELS;
 
-use crate::ui::vertex::Vertex;
+use crate::ui::primitive::Vertex;
 
 
 const BUFFER_LENGTH: usize = 2 * (NUM_CHANNELS + 1);

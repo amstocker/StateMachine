@@ -11,8 +11,9 @@ use crate::sequencer::{
     SequencerSummary, DEFAULT_CHANNEL_LENGTH, SequencerController, SequencerEvent, SequencerControlMessage,
     ChannelItemIndex, Playhead, PlayheadState, PlayheadDirection
 };
+use crate::ui::primitive::{Quad, QuadDrawer, Text, TextDrawer};
+use crate::ui::mouse::MousePosition;
 
-use super::{quad::{QuadDrawer, Quad}, text::{TextDrawer, Text}, mouse::MousePosition};
 
 #[derive(Debug, Default)]
 pub struct ClipInterface {
@@ -244,7 +245,7 @@ impl SequencerInterface {
                         self.summary.playheads[channel_index]
                     ));
                 },
-                PlayheadState::Stopped => {},
+                _ => {},
             }
             text_drawer.draw(Text {
                 text: &format!("{:?}", playhead),
@@ -274,12 +275,13 @@ fn clip_to_quad(channel_index: usize, channel_length: u64, clip: Clip) -> Quad {
     Quad {
         position: (x, y),
         size: (w, h),
-        color: Color::BLUE,
+        color: Color { r: 0.2, g: 0.4, b: 0.6, a: 1.0 },
         z: 0.0,
     }
 }
 
 fn playhead_to_quad(channel_index: usize, channel_length: u64, playhead: Playhead) -> Quad {
+    // TODO: this should be a line
     let w = 0.002;
     let h = 1.0 / NUM_CHANNELS as f32;
     let x = playhead.location as f32 / channel_length as f32;

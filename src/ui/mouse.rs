@@ -1,5 +1,3 @@
-use std::default;
-
 use bytemuck::{Pod, Zeroable, cast_slice};
 use wgpu::{Device, BindGroupLayoutEntry, BindGroupEntry, Buffer, Queue};
 use winit::{dpi::{PhysicalPosition, PhysicalSize}, window::CursorIcon};

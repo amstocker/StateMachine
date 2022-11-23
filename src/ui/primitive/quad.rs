@@ -2,12 +2,11 @@ use bytemuck::{Pod, Zeroable, cast_slice};
 use wgpu::{include_wgsl, ShaderModule, Device, RenderPipeline, Buffer, RenderPass, TextureFormat, Queue, Color};
 
 use crate::ui::mouse::MousePosition;
-use crate::ui::vertex::Vertex;
+use crate::ui::primitive::Vertex;
+use crate::ui::util::color_to_f32_array;
 
-use super::util::color_to_f32_array;
 
-
-pub const MAX_QUADS: usize = 128;
+pub const MAX_QUADS: usize = 256;
 
 const QUAD_VERTICES: &[Vertex] = &[
     Vertex { position: [0.0, 0.0] },
@@ -120,6 +119,7 @@ impl QuadDrawer {
         );
 
         let instances = [QuadInstance::zeroed(); MAX_QUADS];
+
         let instance_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Quad Instance Buffer"),
@@ -133,6 +133,7 @@ impl QuadDrawer {
             bind_group_layouts: &[],
             push_constant_ranges: &[],
         });
+
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
@@ -183,7 +184,12 @@ impl QuadDrawer {
     }
 
     pub fn write(&self, queue: &Queue) {
-        queue.write_buffer(&self.instance_buffer, 0, cast_slice(&[self.instances]));
+        let slice = &self.instances[0..(self.active as usize)];
+        queue.write_buffer(
+            &self.instance_buffer,
+            0,
+            cast_slice(slice)
+        );
     }
 
     pub fn render<'a>(&'a mut self, render_pass: &mut RenderPass<'a>) {
