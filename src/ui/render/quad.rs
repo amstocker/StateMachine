@@ -6,7 +6,7 @@ use crate::ui::render::Vertex;
 use crate::ui::util::color_to_f32_array;
 
 
-pub const MAX_QUADS: usize = 256;
+pub const INSTANCE_BUFFER_SIZE: usize = 256;
 
 const QUAD_VERTICES: &[Vertex] = &[
     Vertex { position: [0.0, 0.0] },
@@ -90,7 +90,7 @@ pub struct QuadHandler {
     index_buffer: Buffer,
     instance_buffer: Buffer,
     render_pipeline: RenderPipeline,
-    instances: [QuadInstance; MAX_QUADS],
+    // instances: [QuadInstance; INSTANCE_BUFFER_SIZE],
     instance_buffer_index: u32
 }
 
@@ -115,7 +115,7 @@ impl QuadHandler {
             }
         );
 
-        let instances = [QuadInstance::zeroed(); MAX_QUADS];
+        let instances = [QuadInstance::zeroed(); INSTANCE_BUFFER_SIZE];
 
         let instance_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
@@ -170,7 +170,7 @@ impl QuadHandler {
             index_buffer,
             instance_buffer,
             render_pipeline,
-            instances,
+            // instances,
             instance_buffer_index: 0
         }
     }

@@ -64,7 +64,7 @@ impl LineInstance {
 
 pub struct LineHandler {
     render_pipeline: RenderPipeline,
-    instances: [LineInstance; INSTANCE_BUFFER_SIZE],
+    // instances: [LineInstance; INSTANCE_BUFFER_SIZE],
     instance_buffer: Buffer,
     instance_buffer_index: u32
 }
@@ -126,7 +126,7 @@ impl LineHandler {
 
         Self {
             render_pipeline,
-            instances,
+            // instances,
             instance_buffer,
             instance_buffer_index: 0
         }

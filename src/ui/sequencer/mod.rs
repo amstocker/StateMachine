@@ -236,11 +236,11 @@ impl SequencerInterface {
             let playhead = self.summary.playheads[channel_index];
             match playhead.state {
                 PlayheadState::Playing => {
-                    renderer_controller.draw(Primitive::Line(playhead_to_line(
+                    renderer_controller.draw(playhead_to_primitive(
                         channel_index,
                         self.channel_length,
                         self.summary.playheads[channel_index]
-                    )));
+                    ));
                 },
                 _ => {},
             }
@@ -273,14 +273,15 @@ fn clip_to_quad(channel_index: usize, channel_length: u64, clip: Clip) -> Quad {
     }
 }
 
-fn playhead_to_line(channel_index: usize, channel_length: u64, playhead: Playhead) -> Line {
+fn playhead_to_primitive(channel_index: usize, channel_length: u64, playhead: Playhead) -> Primitive {
+    let w = 0.002;
     let h = 1.0 / NUM_CHANNELS as f32;
     let x = playhead.location as f32 / channel_length as f32;
     let y = 1.0 - h - (channel_index as f32 / NUM_CHANNELS as f32);
-    Line {
-        from: (x, y),
-        to: (x, y + h),
+    Primitive::Quad(Quad {
+        position: (x, y),
+        size: (w, h),
         color: Color::RED,
-        depth: Depth::Front,
-    }
+        z: 0.0,
+    })
 }
