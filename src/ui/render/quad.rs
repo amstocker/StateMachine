@@ -2,7 +2,7 @@ use bytemuck::{Pod, Zeroable, cast_slice};
 use wgpu::{include_wgsl, ShaderModule, Device, RenderPipeline, Buffer, RenderPass, TextureFormat, Queue, Color};
 
 use crate::ui::mouse::MousePosition;
-use crate::ui::primitive::Vertex;
+use crate::ui::render::Vertex;
 use crate::ui::util::color_to_f32_array;
 
 
@@ -21,9 +21,6 @@ const QUAD_INDICES: &[u16] = &[
 ];
 
 const NUM_QUAD_INDICES: u32 = QUAD_INDICES.len() as u32;
-
-
-
 
 
 #[repr(C)]
@@ -88,16 +85,16 @@ impl Into<QuadInstance> for Quad {
     }
 }
 
-pub struct QuadDrawer {
+pub struct QuadHandler {
     vertex_buffer: Buffer,
     index_buffer: Buffer,
     instance_buffer: Buffer,
     render_pipeline: RenderPipeline,
     instances: [QuadInstance; MAX_QUADS],
-    active: u32
+    instance_buffer_index: u32
 }
 
-impl QuadDrawer {
+impl QuadHandler {
     pub fn init(device: &Device, format: TextureFormat) -> Self {
         use wgpu::util::DeviceExt;
 
@@ -174,22 +171,18 @@ impl QuadDrawer {
             instance_buffer,
             render_pipeline,
             instances,
-            active: 0
+            instance_buffer_index: 0
         }
     }
 
-    pub fn draw(&mut self, quad: Quad) {
-        self.instances[self.active as usize] = quad.into();
-        self.active += 1;
-    }
-
-    pub fn write(&self, queue: &Queue) {
-        let slice = &self.instances[0..(self.active as usize)];
+    pub fn write(&mut self, quad: Quad, queue: &Queue) {
+        let instance: QuadInstance = quad.into();
         queue.write_buffer(
             &self.instance_buffer,
-            0,
-            cast_slice(slice)
+            (self.instance_buffer_index as u64) * (std::mem::size_of::<QuadInstance>() as u64),
+            cast_slice(&[instance])
         );
+        self.instance_buffer_index += 1;
     }
 
     pub fn render<'a>(&'a mut self, render_pass: &mut RenderPass<'a>) {
@@ -203,8 +196,8 @@ impl QuadDrawer {
         render_pass.draw_indexed(
             0..NUM_QUAD_INDICES,
             0,
-            0..self.active
+            0..self.instance_buffer_index
         );
-        self.active = 0;
+        self.instance_buffer_index = 0;
     }
 }

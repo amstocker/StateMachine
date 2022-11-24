@@ -1,7 +1,9 @@
+use wgpu::util::StagingBelt;
 use wgpu::{Device, TextureFormat, CommandEncoder, TextureView, Color};
 use wgpu_glyph::{GlyphBrushBuilder, ab_glyph::FontArc, GlyphBrush, Section};
+use winit::dpi::PhysicalSize;
 
-use crate::ui::{fonts::*, State};
+use crate::ui::{fonts::*, render::Renderer};
 use crate::ui::util::color_to_f32_array;
 
 
@@ -28,13 +30,13 @@ impl Text {
     }
 }
 
-pub struct TextDrawer {
+pub struct TextHandler {
     glyph_brush: GlyphBrush<()>,
     bounds: (f32, f32)
 }
 
-impl TextDrawer {
-    pub fn init(device: &Device, size: (u32, u32), format: TextureFormat) -> Self {
+impl TextHandler {
+    pub fn init(device: &Device, format: TextureFormat, size: PhysicalSize<u32>) -> Self {
         let font: FontArc = JETBRAINS_MONO.into();
         let glyph_brush = GlyphBrushBuilder::using_font(font.clone()).build(device, format);
 
@@ -47,23 +49,31 @@ impl TextDrawer {
         drawer
     }
 
-    pub fn resize(&mut self, size: (u32, u32)) {
-        self.bounds = (size.0 as f32, size.1 as f32);
+    pub fn resize(&mut self, size: PhysicalSize<u32>) {
+        self.bounds = (size.width as f32, size.height as f32);
     }
 
-    pub fn draw(&mut self, text: &Text) {
+    pub fn write(&mut self, text: &Text) {
         self.glyph_brush.queue(text.into_section(self.bounds));
     }
 
-    pub fn render(&mut self, encoder: &mut CommandEncoder, view: TextureView, gpu_state: &mut State) {
+    pub fn render(
+        &mut self,
+        device: &Device,
+        staging_belt: &mut StagingBelt,
+        encoder: &mut CommandEncoder,
+        view: &TextureView,
+        width: u32,
+        height: u32
+    ) {
         self.glyph_brush
             .draw_queued(
-                &gpu_state.device,
-                &mut gpu_state.staging_belt,
+                device,
+                staging_belt,
                 encoder,
-                &view,
-                gpu_state.size.width,
-                gpu_state.size.height,
+                view,
+                width,
+                height,
             )
             .expect("Draw queued");
     }

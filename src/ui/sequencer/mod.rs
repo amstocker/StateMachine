@@ -1,7 +1,4 @@
-mod background;
-
-pub use background::GridBackground;
-use wgpu::{Device, SurfaceConfiguration, RenderPass, Color};
+use wgpu::Color;
 use winit::{event::{WindowEvent, MouseButton, ElementState}, window::{Window, CursorIcon}};
 
 use crate::sequencer::{
@@ -11,8 +8,10 @@ use crate::sequencer::{
     SequencerSummary, DEFAULT_CHANNEL_LENGTH, SequencerController, SequencerEvent, SequencerControlMessage,
     ChannelItemIndex, Playhead, PlayheadState, PlayheadDirection
 };
-use crate::ui::primitive::{Quad, QuadDrawer, Text, TextDrawer};
+use crate::ui::render::{Quad, Text, Line};
 use crate::ui::mouse::MousePosition;
+
+use super::{render::{RendererController, Primitive}, Depth};
 
 
 #[derive(Debug, Default)]
@@ -38,7 +37,6 @@ pub struct SequencerInterface {
     controller: SequencerController,
     channels: [ChannelInterface; NUM_CHANNELS],
     summary: SequencerSummary,
-    background: GridBackground,
     channel_length: u64,
     mouse_position: MousePosition,
     hover_channel_index: usize,
@@ -51,15 +49,12 @@ pub struct SequencerInterface {
 }
 
 impl SequencerInterface {
-    pub fn init(device: &Device, config: &SurfaceConfiguration, controller: SequencerController) -> Self {
-        let background = GridBackground::init(device, config.format);
-
+    pub fn init(controller: SequencerController) -> Self {
         // need global transform uniform
         Self {
             controller,
             channels: Default::default(),
             summary: Default::default(),
-            background,
             channel_length: DEFAULT_CHANNEL_LENGTH,
             mouse_position: MousePosition::default(),
             hover_channel_index: 0,
@@ -103,7 +98,9 @@ impl SequencerInterface {
             }
             WindowEvent::CursorMoved { position, .. } => {
                 self.mouse_position = MousePosition::from_physical(position, window.inner_size());
-                self.hover_channel_index = NUM_CHANNELS - 1 - (self.mouse_position.y * 4.0).floor() as usize;
+                self.hover_channel_index = (NUM_CHANNELS - 1 - (self.mouse_position.y * 4.0).floor() as usize)
+                    .min(NUM_CHANNELS)
+                    .max(0);
                 self.hover_channel_location = (self.channel_length as f32 * self.mouse_position.x).floor() as u64;
                 if self.grabbing {
                     self.handle_clip_move();
@@ -230,40 +227,36 @@ impl SequencerInterface {
         }
     }
 
-    pub fn draw(&self, quad_drawer: &mut QuadDrawer, text_drawer: &mut TextDrawer) {
+    pub fn draw(&self, mut renderer_controller: RendererController) {
         for (channel_index, channel) in self.channels.iter().enumerate() {
             for clip in channel.clips.iter().filter(|clip| clip.model.enabled) {
-                quad_drawer.draw(clip.quad);
+                renderer_controller.draw(Primitive::Quad(clip.quad));
             }
 
             let playhead = self.summary.playheads[channel_index];
             match playhead.state {
                 PlayheadState::Playing => {
-                    quad_drawer.draw(playhead_to_quad(
+                    renderer_controller.draw(Primitive::Line(playhead_to_line(
                         channel_index,
                         self.channel_length,
                         self.summary.playheads[channel_index]
-                    ));
+                    )));
                 },
                 _ => {},
             }
-            text_drawer.draw(&Text {
+            renderer_controller.draw(Primitive::Text(Text {
                 text: format!("{:?}", playhead),
                 position: (0.3, (NUM_CHANNELS as f32 - channel_index as f32) / NUM_CHANNELS as f32),
                 scale: 30.0,
                 color: Color::BLACK
-            })
+            }))
         }
-        text_drawer.draw(&Text {
+        renderer_controller.draw(Primitive::Text(Text {
             text: format!("Frames Processed: {}", self.summary.total_frames_processed),
             position: (0.0, 1.0),
             scale: 30.0,
             color: Color::BLACK,
-        });
-    }
-
-    pub fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>) {
-        self.background.render(render_pass);
+        }));
     }
 }
 
@@ -280,16 +273,14 @@ fn clip_to_quad(channel_index: usize, channel_length: u64, clip: Clip) -> Quad {
     }
 }
 
-fn playhead_to_quad(channel_index: usize, channel_length: u64, playhead: Playhead) -> Quad {
-    // TODO: this should be a line
-    let w = 0.002;
+fn playhead_to_line(channel_index: usize, channel_length: u64, playhead: Playhead) -> Line {
     let h = 1.0 / NUM_CHANNELS as f32;
     let x = playhead.location as f32 / channel_length as f32;
     let y = 1.0 - h - (channel_index as f32 / NUM_CHANNELS as f32);
-    Quad {
-        position: (x, y),
-        size: (w, h),
+    Line {
+        from: (x, y),
+        to: (x, y + h),
         color: Color::RED,
-        z: 0.0,
+        depth: Depth::Front,
     }
 }

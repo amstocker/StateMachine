@@ -1,5 +1,5 @@
 pub mod fonts;
-pub mod primitive;
+pub mod render;
 pub mod sequencer;
 pub mod mouse;
 pub mod util;

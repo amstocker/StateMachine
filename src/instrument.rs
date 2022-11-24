@@ -1,11 +1,10 @@
-use wgpu::RenderPass;
 use winit::window::{Window, CursorIcon};
 use winit::event::{WindowEvent, MouseButton, ElementState};
 
-use crate::ui::primitive::{Quad, QuadDrawer, Text, TextDrawer};
+use crate::ui::render::RendererController;
 use crate::ui::sequencer::{SequencerInterface};
 use crate::ui::mouse::MousePosition;
-use crate::ui::{Application, State};
+use crate::ui::Application;
 use crate::config::InstrumentConfig;
 use crate::sequencer::{SequencerController, Sequencer, SequencerEvent, Clip};
 use crate::sound::{Output, SoundBankController, Float, SoundBank};
@@ -21,7 +20,7 @@ pub struct Instrument {
 impl Application for Instrument {
     type Config = InstrumentConfig;
 
-    fn init(config: InstrumentConfig, state: &State) -> Instrument {
+    fn init(config: InstrumentConfig) -> Instrument {
         let (
             sound_bank_controller,
             sound_bank
@@ -34,7 +33,7 @@ impl Application for Instrument {
         let mut output = Output::new(config.output);
         output.start(sequencer);
 
-        let mut sequencer_interface = SequencerInterface::init(&state.device, &state.config, sequencer_controller);
+        let mut sequencer_interface = SequencerInterface::init(sequencer_controller);
 
         let source_index: usize = 1;
         let metadata = sound_bank_controller.get(source_index).unwrap();
@@ -85,11 +84,7 @@ impl Application for Instrument {
         self.sequencer_interface.update();
     }
 
-    fn draw(&self, quad_drawer: &mut QuadDrawer, text_drawer: &mut TextDrawer) {
-        self.sequencer_interface.draw(quad_drawer, text_drawer);
-    }
-
-    fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>) {
-        self.sequencer_interface.render(render_pass);
+    fn draw(&self, renderer_controller: RendererController) {
+        self.sequencer_interface.draw(renderer_controller);
     }
 }
