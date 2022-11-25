@@ -1,4 +1,5 @@
 use wgpu::Color;
+use winit::dpi::PhysicalSize;
 use winit::window::{Window, CursorIcon};
 use winit::event::{WindowEvent, MouseButton, ElementState};
 
@@ -105,7 +106,7 @@ impl Application for Instrument {
         self.sequencer_interface.handle_window_event(event, window);
     }
 
-    fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {
+    fn resize(&mut self, size: PhysicalSize<u32>) {
 
     }
 
@@ -117,13 +118,13 @@ impl Application for Instrument {
         renderer_controller.draw(Primitive::Line(Line {
             from: (0.0, self.global_layout.vertical_divide),
             to: (1.0, self.global_layout.vertical_divide),
-            color: Color::BLUE,
+            color: Color::BLACK,
             depth: Depth::Mid,
         }));
         renderer_controller.draw(Primitive::Line(Line {
             from: (self.global_layout.horizontal_divide, self.global_layout.vertical_divide),
             to: (self.global_layout.horizontal_divide, 1.0),
-            color: Color::BLUE,
+            color: Color::BLACK,
             depth: Depth::Mid,
         }));
         renderer_controller.set_transform(self.sequencer_transform);
