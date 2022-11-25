@@ -3,8 +3,8 @@ use wgpu::{Device, TextureFormat, CommandEncoder, TextureView, Color, DepthStenc
 use wgpu_glyph::{GlyphBrushBuilder, ab_glyph::FontArc, GlyphBrush, Section};
 use winit::dpi::PhysicalSize;
 
-use crate::ui::Depth;
-use crate::ui::{fonts::*, render::Renderer};
+use crate::ui::{Depth, Transform};
+use crate::ui::fonts::*;
 use crate::ui::util::color_to_f32_array;
 
 
@@ -17,7 +17,7 @@ pub struct Text {
 }
 
 impl Text {
-    fn into_section(&self, bounds: (f32, f32)) -> Section {
+    fn into_section_with_transform(&self, bounds: (f32, f32), transform: Transform) -> Section {
         Section {
             screen_position: (
                 self.position.0 * bounds.0,
@@ -63,8 +63,8 @@ impl TextHandler {
         self.bounds = (size.width as f32, size.height as f32);
     }
 
-    pub fn write(&mut self, text: &Text) {
-        self.glyph_brush.queue(text.into_section(self.bounds));
+    pub fn write(&mut self, text: &Text, transform: Transform) {
+        self.glyph_brush.queue(text.into_section_with_transform(self.bounds, transform));
     }
 
     pub fn render(

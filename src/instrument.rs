@@ -4,7 +4,7 @@ use winit::event::{WindowEvent, MouseButton, ElementState};
 use crate::ui::render::RendererController;
 use crate::ui::sequencer::{SequencerInterface};
 use crate::ui::mouse::MousePosition;
-use crate::ui::Application;
+use crate::ui::{Application, Transform};
 use crate::config::InstrumentConfig;
 use crate::sequencer::{SequencerController, Sequencer, SequencerEvent, Clip};
 use crate::sound::{Output, SoundBankController, Float, SoundBank};
@@ -12,6 +12,7 @@ use crate::sound::{Output, SoundBankController, Float, SoundBank};
 
 pub struct Instrument {
     sequencer_interface: SequencerInterface,
+    sequencer_transform: Transform,
     sound_bank_controller: SoundBankController<Float>,
     _output: Output,
     mouse_position: MousePosition,
@@ -68,8 +69,14 @@ impl Application for Instrument {
             source_shift: 0,
         });
 
+        let sequencer_transform = Transform {
+            translate: (0.1, 0.1),
+            scale: (0.7, 0.7)
+        };
+
         Self {
             sequencer_interface,
+            sequencer_transform,
             sound_bank_controller,
             _output: output,
             mouse_position: MousePosition::default(),
@@ -77,6 +84,15 @@ impl Application for Instrument {
     }
 
     fn handle_window_event(&mut self, event: &WindowEvent, window: &Window) {
+        match event {
+            WindowEvent::CursorMoved { position, .. } => {
+                self.mouse_position = MousePosition::from_physical(position, window.inner_size());
+                self.sequencer_interface.set_mouse_position(
+                    self.mouse_position.transform(self.sequencer_transform.inverse())
+                )
+            },
+            _ => {}
+        }
         self.sequencer_interface.handle_window_event(event, window);
     }
 
@@ -84,7 +100,8 @@ impl Application for Instrument {
         self.sequencer_interface.update();
     }
 
-    fn draw(&self, renderer_controller: RendererController) {
+    fn draw(&self, mut renderer_controller: RendererController) {
+        renderer_controller.set_transform(self.sequencer_transform);
         self.sequencer_interface.draw(renderer_controller);
     }
 }

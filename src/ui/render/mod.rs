@@ -8,8 +8,10 @@ pub use text::*;
 pub use line::*;
 pub use vertex::*;
 
-use wgpu::{util::StagingBelt, TextureView, DepthStencilState};
+use wgpu::{util::StagingBelt, TextureView};
 use winit::window::Window;
+
+use crate::ui::Transform;
 
 
 pub const CLEAR_COLOR: wgpu::Color = wgpu::Color {
@@ -44,7 +46,8 @@ pub struct Renderer {
 }
 
 pub struct RendererController<'r> {
-    renderer: &'r mut Renderer
+    renderer: &'r mut Renderer,
+    transform: Transform
 }
 
 impl<'r> RendererController<'r> {
@@ -58,23 +61,24 @@ impl<'r> RendererController<'r> {
         } = self.renderer;
         match primitive {
             Primitive::Quad(quad) => {
-                quad_handler.write(quad, queue)
+                quad_handler.write(quad, self.transform, queue)
             },
             Primitive::Text(ref text) => {
-                text_handler.write(text);
+                text_handler.write(text, self.transform);
             },
             Primitive::Line(line) => {
-                line_handler.write(line, queue);
+                line_handler.write(line, self.transform, queue);
             },
             Primitive::Mesh => todo!(),
         }
     }
 
-    pub fn set_transform(&mut self) {
-        todo!();
+    pub fn set_transform(&mut self, transform: Transform) {
+        self.transform = transform;
+    }
 
-        // Set the "global transform",
-        //  might need to store in instance buffer...
+    pub fn clear_transform(&mut self) {
+        self.transform = Transform::default();
     }
 }
 
@@ -156,7 +160,10 @@ impl Renderer {
     }
 
     pub fn controller(&mut self) -> RendererController {
-        RendererController { renderer: self }
+        RendererController {
+            renderer: self,
+            transform: Transform::default()
+        }
     }
 
     pub fn render(&mut self) {

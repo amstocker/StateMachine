@@ -1,7 +1,7 @@
 use bytemuck::{Pod, Zeroable, cast_slice};
 use wgpu::{include_wgsl, Device, RenderPipeline, Buffer, RenderPass, TextureFormat, Queue, Color, DepthStencilState};
 
-use crate::ui::Depth;
+use crate::ui::{Depth, TransformInstance, Transform};
 use crate::ui::mouse::MousePosition;
 use crate::ui::render::Vertex;
 use crate::ui::util::color_to_f32_array;
@@ -29,7 +29,8 @@ const NUM_QUAD_INDICES: u32 = QUAD_INDICES.len() as u32;
 struct QuadInstance {
     position: [f32; 3],
     size: [f32; 2],
-    color: [f32; 4]
+    color: [f32; 4],
+    transform: TransformInstance
 }
 
 impl QuadInstance {
@@ -53,6 +54,11 @@ impl QuadInstance {
                     offset: mem::size_of::<[f32; 5]>() as wgpu::BufferAddress,
                     shader_location: 3,
                     format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 9]>() as wgpu::BufferAddress,
+                    shader_location: 4,
+                    format: wgpu::VertexFormat::Float32x4
                 }
             ],
         }
@@ -74,14 +80,13 @@ impl Quad {
         position.y > self.position.1 &&
         position.y < self.position.1 + self.size.1
     }
-}
 
-impl Into<QuadInstance> for Quad {
-    fn into(self) -> QuadInstance {
+    fn instance_with_transform(&self, transform: Transform) -> QuadInstance {
         QuadInstance {
             position: [self.position.0, self.position.1, self.depth.z()],
             size: [self.size.0, self.size.1],
-            color: color_to_f32_array(self.color)
+            color: color_to_f32_array(self.color),
+            transform: transform.into()
         }
     }
 }
@@ -176,8 +181,8 @@ impl QuadHandler {
         }
     }
 
-    pub fn write(&mut self, quad: Quad, queue: &Queue) {
-        let instance: QuadInstance = quad.into();
+    pub fn write(&mut self, quad: Quad, transform: Transform, queue: &Queue) {
+        let instance: QuadInstance = quad.instance_with_transform(transform);
         queue.write_buffer(
             &self.instance_buffer,
             (self.instance_buffer_index as u64) * (std::mem::size_of::<QuadInstance>() as u64),

@@ -1,7 +1,8 @@
 struct InstaceInput {
     @location(0) p: vec3<f32>,
     @location(1) q: vec3<f32>,
-    @location(2) color: vec4<f32>
+    @location(2) color: vec4<f32>,
+    @location(3) transform: vec4<f32>
 }
 
 struct VertexOutput {
@@ -17,9 +18,11 @@ fn vs_main(
     var out: VertexOutput;
     let t1 = f32(index);
     let t0 = 1.0 - t1;
+    let x = t0 * instance.p[0] + t1 * instance.q[0];
+    let y = t0 * instance.p[1] + t1 * instance.q[1];
     out.clip_position = vec4<f32>(
-        2.0 * (t0 * instance.p[0] + t1 * instance.q[0]) - 1.0,
-        2.0 * (t0 * instance.p[1] + t1 * instance.q[1]) - 1.0,
+        2.0 * (instance.transform[0] + instance.transform[2] * x) - 1.0,
+        2.0 * (instance.transform[1] + instance.transform[3] * y) - 1.0,
         t0 * instance.p[2] + t1 * instance.q[2],
         1.0
     );

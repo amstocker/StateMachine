@@ -2,6 +2,8 @@ use bytemuck::{Pod, Zeroable, cast_slice};
 use wgpu::{Device, BindGroupLayoutEntry, BindGroupEntry, Buffer, Queue};
 use winit::{dpi::{PhysicalPosition, PhysicalSize}, window::CursorIcon};
 
+use crate::ui::Transform;
+
 
 #[derive(Debug, Default)]
 pub struct Mouse {
@@ -38,6 +40,13 @@ impl MousePosition {
         MousePosition {
             x: position.x as f32 / size.width as f32,
             y: (size.height as f32 - position.y as f32) / size.height as f32
+        }
+    }
+
+    pub fn transform(&self, transform: Transform) -> MousePosition {
+        MousePosition { 
+            x: transform.scale.0 * self.x + transform.translate.0,
+            y: transform.scale.1 * self.y + transform.translate.1
         }
     }
 }

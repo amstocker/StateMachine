@@ -6,7 +6,7 @@ use winit::{event::{WindowEvent, MouseButton, ElementState}, window::Window};
 
 use crate::sequencer::*;
 use crate::ui::sequencer::state::*;
-use crate::ui::Depth;
+use crate::ui::{Depth, Transform};
 use crate::ui::render::{RendererController, Primitive, Quad, Text, Line, CLEAR_COLOR};
 use crate::ui::mouse::MousePosition;
 
@@ -86,13 +86,16 @@ impl SequencerInterface {
             WindowEvent::MouseInput { button, state: element_state, .. } => {
                 self.handle_mouse_input(button, element_state)
             }
-            WindowEvent::CursorMoved { position, .. } => {
-                self.mouse_position = MousePosition::from_physical(position, window.inner_size());
+            WindowEvent::CursorMoved { .. } => {
                 self.handle_cursor_move()
             }
             _ => self.state
         };
         window.set_cursor_icon(self.state.cursor_icon());
+    }
+
+    pub fn set_mouse_position(&mut self, mouse_position: MousePosition) {
+        self.mouse_position = mouse_position;
     }
 
     fn handle_mouse_input(&mut self, button: &MouseButton, element_state: &ElementState) -> State {

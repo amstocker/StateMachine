@@ -3,7 +3,7 @@ use wgpu::{TextureFormat, Device, include_wgsl, Buffer, RenderPipeline, RenderPa
 
 use crate::sequencer::NUM_CHANNELS;
 
-use crate::ui::Depth;
+use crate::ui::{Depth, TransformInstance, Transform};
 use crate::ui::util::color_to_f32_array;
 
 
@@ -16,23 +16,25 @@ pub struct Line {
     pub depth: Depth
 }
 
+impl Line {
+    pub fn instance_with_transform(&self, transform: Transform) -> LineInstance {
+        let z = self.depth.z();
+        LineInstance {
+            from: [self.from.0, self.from.1, z],
+            to: [self.to.0, self.to.1, z],
+            color: color_to_f32_array(self.color),
+            transform: transform.into()
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
 pub struct LineInstance {
     from: [f32; 3],
     to: [f32; 3],
-    color: [f32; 4]
-}
-
-impl Into<LineInstance> for Line {
-    fn into(self) -> LineInstance {
-        let z = self.depth.z();
-        LineInstance {
-            from: [self.from.0, self.from.1, z],
-            to: [self.to.0, self.to.1, z],
-            color: color_to_f32_array(self.color)
-        }
-    }
+    color: [f32; 4],
+    transform: TransformInstance
 }
 
 impl LineInstance {
@@ -56,6 +58,11 @@ impl LineInstance {
                     offset: mem::size_of::<[f32; 6]>() as wgpu::BufferAddress,
                     shader_location: 2,
                     format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 10]>() as wgpu::BufferAddress,
+                    shader_location: 3,
+                    format: wgpu::VertexFormat::Float32x4
                 }
             ],
         }
@@ -132,8 +139,8 @@ impl LineHandler {
         }
     }
 
-    pub fn write(&mut self, line: Line, queue: &Queue) {
-        let instance: LineInstance = line.into();
+    pub fn write(&mut self, line: Line, transform: Transform, queue: &Queue) {
+        let instance: LineInstance = line.instance_with_transform(transform);
         queue.write_buffer(
             &self.instance_buffer,
             (self.instance_buffer_index as u64) * (std::mem::size_of::<LineInstance>() as u64),
