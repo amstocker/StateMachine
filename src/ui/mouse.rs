@@ -1,33 +1,9 @@
 use bytemuck::{Pod, Zeroable, cast_slice};
 use wgpu::{Device, BindGroupLayoutEntry, BindGroupEntry, Buffer, Queue};
-use winit::{dpi::{PhysicalPosition, PhysicalSize}, window::CursorIcon};
+use winit::dpi::{PhysicalPosition, PhysicalSize};
 
 use crate::ui::Transform;
 
-
-#[derive(Debug, Default)]
-pub struct Mouse {
-    position: MousePosition,
-    state: MouseState,
-    locked: bool
-}
-
-#[derive(Debug, Default, Clone, Copy)]
-pub enum MouseState {
-    #[default] Default,
-    Grab,
-    Grabbing
-}
-
-impl MouseState {
-    pub fn cursor_icon(&self) -> CursorIcon {
-        match self {
-            MouseState::Default => CursorIcon::Default,
-            MouseState::Grab => CursorIcon::Grab,
-            MouseState::Grabbing => CursorIcon::Grabbing,
-        }
-    }
-}
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct MousePosition {
