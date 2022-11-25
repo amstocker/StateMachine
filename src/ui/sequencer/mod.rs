@@ -7,7 +7,7 @@ use winit::{event::{WindowEvent, MouseButton, ElementState}, window::Window};
 use crate::sequencer::*;
 use crate::ui::sequencer::state::*;
 use crate::ui::Depth;
-use crate::ui::render::{RendererController, Primitive, Quad, Text};
+use crate::ui::render::{RendererController, Primitive, Quad, Text, Line};
 use crate::ui::mouse::MousePosition;
 
 
@@ -55,6 +55,13 @@ impl SequencerInterface {
     fn get_potential_action(&self) -> Action {
         let channel_index = mouse_position_to_channel_index(self.mouse_position);
         let channel_location = mouse_position_to_channel_location(self.mouse_position, self.channel_length);
+        if mouse_position_is_on_junction_lane(self.mouse_position, channel_index) {
+            return Action::Channel {
+                channel_action: ChannelAction::CreateJunction,
+                channel_index,
+                channel_location
+            }
+        }
         let channel = &self.channels[channel_index];
         for clip_index in 0..channel.active_clips {
             if channel.clips[clip_index].quad.contains(self.mouse_position) {
@@ -147,7 +154,22 @@ impl SequencerInterface {
                             _ => self.state
                         }
                     },
-                    ChannelAction::CreateJunction => todo!(),
+                    ChannelAction::CreateJunction => {
+                        match (button, element_state) {
+                            (MouseButton::Left, ElementState::Pressed) => {
+                                self.handle_add_junction(
+                                    channel_index,
+                                    channel_location,
+                                    Junction {
+                                        enabled: true,
+                                        location: channel_location,
+                                        junction_type: JunctionType::Reflect
+                                    }
+                                )
+                            },
+                            _ => self.state
+                        }
+                    },
                     ChannelAction::ModifyJunction => todo!(),
                     ChannelAction::SetPlayhead => {
                         match element_state {
@@ -199,6 +221,25 @@ impl SequencerInterface {
         ).unwrap();
     }
 
+    pub fn handle_add_junction(&mut self, channel_index: usize, channel_location: u64, model: Junction) -> State {
+        let channel = &mut self.channels[channel_index];
+        channel.junctions[channel.active_junctions] = JunctionInterface {
+            model
+        };
+        self.controller.control_message_sender.push(
+            SequencerControlMessage::SyncJunction {
+                index: ChannelItemIndex {
+                    channel_index,
+                    item_index: channel.active_junctions
+                },
+                junction: model
+            }
+        ).unwrap();
+
+        channel.active_junctions += 1;
+        self.state
+    }
+
     pub fn add_clip(&mut self, channel_index: usize, model: Clip) {
         let channel = &mut self.channels[channel_index];
         channel.clips[channel.active_clips] = ClipInterface {
@@ -243,8 +284,20 @@ impl SequencerInterface {
 
     pub fn draw(&self, mut renderer_controller: RendererController) {
         for (channel_index, channel) in self.channels.iter().enumerate() {
+            let inv = 1.0 / NUM_CHANNELS as f32;
+            let y = inv * (NUM_CHANNELS as f32 - channel_index as f32);
+            
             for clip in channel.clips.iter().filter(|clip| clip.model.enabled) {
                 renderer_controller.draw(Primitive::Quad(clip.quad));
+            }
+            for junction in channel.junctions.iter().filter(|junction| junction.model.enabled) {
+                let x = junction.model.location as f32 / self.channel_length as f32;
+                renderer_controller.draw(Primitive::Line(Line {
+                    from: (x, y),
+                    to: (x, y - inv),
+                    color: Color::GREEN,
+                    depth: Depth::Front,
+                }))
             }
 
             let playhead = self.summary.playheads[channel_index];
@@ -258,21 +311,34 @@ impl SequencerInterface {
                 },
                 _ => {},
             }
+
             renderer_controller.draw(Primitive::Text(Text {
                 text: format!("{:?}", playhead),
-                position: (0.3, (NUM_CHANNELS as f32 - channel_index as f32) / NUM_CHANNELS as f32),
+                position: (0.3, y),
                 scale: 30.0,
                 color: Color::BLACK,
                 depth: Depth::Top
-            }))
+            }));
+            renderer_controller.draw(Primitive::Line(Line {
+                from: (0.0, y),
+                to: (1.0, y),
+                color: Color::BLACK,
+                depth: Depth::Back,
+            }));
+
+            let dy = inv * style::JUNCTION_LANE_PROPORTION;
+            renderer_controller.draw(Primitive::Line(Line {
+                from: (0.0, y - dy),
+                to: (1.0, y - dy),
+                color: Color {
+                    r: 230.0 / 255.0,
+                    g: 177.0 / 255.0,
+                    b: 46.0 / 255.0,
+                    a: 1.0,
+                },
+                depth: Depth::Back,
+            }));
         }
-        renderer_controller.draw(Primitive::Text(Text {
-            text: format!("Frames Processed: {}", self.summary.total_frames_processed),
-            position: (0.0, 1.0),
-            scale: 30.0,
-            color: Color::BLACK,
-            depth: Depth::Top
-        }));
     }
 }
 
@@ -284,6 +350,13 @@ fn mouse_position_to_channel_index(mouse_position: MousePosition) -> usize {
 
 fn mouse_position_to_channel_location(mouse_position: MousePosition, channel_length: u64) -> u64 {
     (channel_length as f32 * mouse_position.x).floor() as u64
+}
+
+fn mouse_position_is_on_junction_lane(mouse_position: MousePosition, channel_index: usize) -> bool {
+    let inv = 1.0 / NUM_CHANNELS as f32;
+    let y = 1.0 - inv * channel_index as f32;
+    
+    y - mouse_position.y < inv * style::JUNCTION_LANE_PROPORTION
 }
 
 fn clip_to_quad(channel_index: usize, channel_length: u64, clip: Clip) -> Quad {

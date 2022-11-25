@@ -48,7 +48,7 @@ impl State {
                     Action::Channel { channel_action: action, .. } => {
                         match action {
                             ChannelAction::GrabClip { .. } => CursorIcon::Grab,
-                            ChannelAction::CreateJunction => CursorIcon::Default,
+                            ChannelAction::CreateJunction => CursorIcon::Hand,
                             ChannelAction::ModifyJunction => CursorIcon::Default,
                             ChannelAction::SetPlayhead => CursorIcon::Crosshair,
                         }

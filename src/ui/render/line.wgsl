@@ -15,9 +15,12 @@ fn vs_main(
     instance: InstaceInput
 ) -> VertexOutput {
     var out: VertexOutput;
-    var pos = (1.0 - f32(index)) * instance.p + f32(index) * instance.q;
+    let t1 = f32(index);
+    let t0 = 1.0 - t1;
     out.clip_position = vec4<f32>(
-        2.0 * pos - 1.0,
+        2.0 * (t0 * instance.p[0] + t1 * instance.q[0]) - 1.0,
+        2.0 * (t0 * instance.p[1] + t1 * instance.q[1]) - 1.0,
+        t0 * instance.p[2] + t1 * instance.q[2],
         1.0
     );
     out.color = instance.color;
