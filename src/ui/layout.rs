@@ -15,16 +15,16 @@ pub struct ThreePanelLayout {
 
 impl ThreePanelLayout {
     pub fn transform(&self) -> ThreePanelLayoutTransform {
-        let v = Vertical {
+        let vertical = Vertical {
             divide: self.vertical_divide
         }.transform();
-        let h = Horizontal {
+        let horizontal = Horizontal {
             divide: self.horizontal_divide
         }.transform();
         ThreePanelLayoutTransform { 
-            main_panel_transform: v.top.then(h.right),
-            side_panel_transform: v.top.then(h.left),
-            bottom_panel_transform: v.bottom
+            main_panel_transform: vertical.top.then(horizontal.right),
+            side_panel_transform: vertical.top.then(horizontal.left),
+            bottom_panel_transform: vertical.bottom
         }
     }
 }
