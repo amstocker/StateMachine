@@ -8,18 +8,26 @@ mod application;
 pub use application::*;
 
 
+#[derive(Debug, Default, Clone, Copy)]
 pub enum Depth {
     Back,
-    Mid,
-    Front
+    #[default] Mid,
+    Front,
+    Menu,
+    Modal,
+    Top
 }
 
 impl Depth {
     pub fn z(&self) -> f32 {
+        use Depth::*;
         match self {
-            Depth::Back => 0.0,
-            Depth::Mid => 0.5,
-            Depth::Front => 1.0,
+            Back => 0.1,
+            Mid => 0.5,
+            Front => 0.8,
+            Menu => 0.9,
+            Modal => 0.99,
+            Top => 1.0
         }
     }
 }

@@ -248,7 +248,8 @@ impl SequencerInterface {
                 text: format!("{:?}", playhead),
                 position: (0.3, (NUM_CHANNELS as f32 - channel_index as f32) / NUM_CHANNELS as f32),
                 scale: 30.0,
-                color: Color::BLACK
+                color: Color::BLACK,
+                depth: Depth::Top
             }))
         }
         renderer_controller.draw(Primitive::Text(Text {
@@ -256,6 +257,7 @@ impl SequencerInterface {
             position: (0.0, 1.0),
             scale: 30.0,
             color: Color::BLACK,
+            depth: Depth::Top
         }));
     }
 }
@@ -269,7 +271,7 @@ fn clip_to_quad(channel_index: usize, channel_length: u64, clip: Clip) -> Quad {
         position: (x, y),
         size: (w, h),
         color: Color { r: 0.2, g: 0.4, b: 0.6, a: 1.0 },
-        z: 0.0,
+        depth: Depth::Mid
     }
 }
 
@@ -282,6 +284,6 @@ fn playhead_to_primitive(channel_index: usize, channel_length: u64, playhead: Pl
         position: (x, y),
         size: (w, h),
         color: Color::RED,
-        z: 0.0,
+        depth: Depth::Front
     })
 }

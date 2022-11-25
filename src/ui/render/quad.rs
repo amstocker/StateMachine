@@ -1,12 +1,13 @@
 use bytemuck::{Pod, Zeroable, cast_slice};
-use wgpu::{include_wgsl, ShaderModule, Device, RenderPipeline, Buffer, RenderPass, TextureFormat, Queue, Color};
+use wgpu::{include_wgsl, Device, RenderPipeline, Buffer, RenderPass, TextureFormat, Queue, Color, DepthStencilState};
 
+use crate::ui::Depth;
 use crate::ui::mouse::MousePosition;
 use crate::ui::render::Vertex;
 use crate::ui::util::color_to_f32_array;
 
 
-pub const INSTANCE_BUFFER_SIZE: usize = 256;
+pub const INSTANCE_BUFFER_SIZE: usize = 128;
 
 const QUAD_VERTICES: &[Vertex] = &[
     Vertex { position: [0.0, 0.0] },
@@ -63,7 +64,7 @@ pub struct Quad {
     pub position: (f32, f32),
     pub size: (f32, f32),
     pub color: Color,
-    pub z: f32
+    pub depth: Depth
 }
 
 impl Quad {
@@ -78,7 +79,7 @@ impl Quad {
 impl Into<QuadInstance> for Quad {
     fn into(self) -> QuadInstance {
         QuadInstance {
-            position: [self.position.0, self.position.1, self.z],
+            position: [self.position.0, self.position.1, self.depth.z()],
             size: [self.size.0, self.size.1],
             color: color_to_f32_array(self.color)
         }
@@ -95,7 +96,7 @@ pub struct QuadHandler {
 }
 
 impl QuadHandler {
-    pub fn init(device: &Device, format: TextureFormat) -> Self {
+    pub fn init(device: &Device, format: TextureFormat, depth_stencil_state: DepthStencilState) -> Self {
         use wgpu::util::DeviceExt;
 
         let shader = device.create_shader_module(include_wgsl!("quad.wgsl"));
@@ -160,7 +161,7 @@ impl QuadHandler {
                 unclipped_depth: false,
                 conservative: false
             },
-            depth_stencil: None,
+            depth_stencil: Some(depth_stencil_state),
             multisample: wgpu::MultisampleState::default(),
             multiview: None
         });

@@ -1,8 +1,9 @@
 use wgpu::util::StagingBelt;
-use wgpu::{Device, TextureFormat, CommandEncoder, TextureView, Color};
+use wgpu::{Device, TextureFormat, CommandEncoder, TextureView, Color, DepthStencilState};
 use wgpu_glyph::{GlyphBrushBuilder, ab_glyph::FontArc, GlyphBrush, Section};
 use winit::dpi::PhysicalSize;
 
+use crate::ui::Depth;
 use crate::ui::{fonts::*, render::Renderer};
 use crate::ui::util::color_to_f32_array;
 
@@ -11,7 +12,8 @@ pub struct Text {
     pub text: String,
     pub position: (f32, f32),
     pub scale: f32,
-    pub color: Color
+    pub color: Color,
+    pub depth: Depth
 }
 
 impl Text {
@@ -24,21 +26,29 @@ impl Text {
             bounds,
             text: vec![wgpu_glyph::Text::new(&self.text)
                 .with_color(color_to_f32_array(self.color))
-                .with_scale(self.scale)],
+                .with_scale(self.scale)
+                .with_z(self.depth.z())],
             ..Section::default()
         }
     }
 }
 
 pub struct TextHandler {
-    glyph_brush: GlyphBrush<()>,
+    glyph_brush: GlyphBrush<DepthStencilState>,
     bounds: (f32, f32)
 }
 
 impl TextHandler {
-    pub fn init(device: &Device, format: TextureFormat, size: PhysicalSize<u32>) -> Self {
+    pub fn init(
+        device: &Device,
+        format: TextureFormat,
+        depth_stencil_state: DepthStencilState,
+        size: PhysicalSize<u32>
+    ) -> Self {
         let font: FontArc = JETBRAINS_MONO.into();
-        let glyph_brush = GlyphBrushBuilder::using_font(font.clone()).build(device, format);
+        let glyph_brush = GlyphBrushBuilder::using_font(font.clone())
+            .depth_stencil_state(depth_stencil_state)
+            .build(device, format);
 
         let mut drawer = Self {
             glyph_brush,
@@ -63,6 +73,7 @@ impl TextHandler {
         staging_belt: &mut StagingBelt,
         encoder: &mut CommandEncoder,
         view: &TextureView,
+        depth_view: &TextureView,
         width: u32,
         height: u32
     ) {
@@ -72,6 +83,14 @@ impl TextHandler {
                 staging_belt,
                 encoder,
                 view,
+                wgpu::RenderPassDepthStencilAttachment {
+                    view: &depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: true,
+                    }),
+                    stencil_ops: None,
+                },
                 width,
                 height,
             )
