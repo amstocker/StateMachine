@@ -2,12 +2,12 @@ pub mod fonts;
 pub mod render;
 pub mod sequencer;
 pub mod mouse;
+pub mod layout;
 pub mod util;
 
 mod application;
 pub use application::*;
 use bytemuck::{Pod, Zeroable};
-use wgpu::VertexAttribute;
 
 
 #[derive(Debug, Default, Clone, Copy)]

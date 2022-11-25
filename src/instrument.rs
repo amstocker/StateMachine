@@ -1,16 +1,19 @@
+use wgpu::Color;
 use winit::window::{Window, CursorIcon};
 use winit::event::{WindowEvent, MouseButton, ElementState};
 
-use crate::ui::render::RendererController;
+use crate::ui::layout::{GlobalLayout, GlobalLayoutTransforms};
+use crate::ui::render::{RendererController, Primitive, Line};
 use crate::ui::sequencer::{SequencerInterface};
 use crate::ui::mouse::MousePosition;
-use crate::ui::{Application, Transform};
+use crate::ui::{Application, Transform, Depth};
 use crate::config::InstrumentConfig;
 use crate::sequencer::{SequencerController, Sequencer, SequencerEvent, Clip};
 use crate::sound::{Output, SoundBankController, Float, SoundBank};
 
 
 pub struct Instrument {
+    global_layout: GlobalLayout,
     sequencer_interface: SequencerInterface,
     sequencer_transform: Transform,
     sound_bank_controller: SoundBankController<Float>,
@@ -69,12 +72,18 @@ impl Application for Instrument {
             source_shift: 0,
         });
 
-        let sequencer_transform = Transform {
-            translate: (0.1, 0.1),
-            scale: (0.7, 0.7)
+        let global_layout = GlobalLayout {
+            vertical_divide: 0.2,
+            horizontal_divide: 0.2,
         };
 
+        let GlobalLayoutTransforms {
+            main_panel_transform: sequencer_transform,
+            ..
+        } = global_layout.build_transforms();
+
         Self {
+            global_layout,
             sequencer_interface,
             sequencer_transform,
             sound_bank_controller,
@@ -96,11 +105,27 @@ impl Application for Instrument {
         self.sequencer_interface.handle_window_event(event, window);
     }
 
+    fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {
+
+    }
+
     fn update(&mut self) {
         self.sequencer_interface.update();
     }
 
     fn draw(&self, mut renderer_controller: RendererController) {
+        renderer_controller.draw(Primitive::Line(Line {
+            from: (0.0, self.global_layout.vertical_divide),
+            to: (1.0, self.global_layout.vertical_divide),
+            color: Color::BLUE,
+            depth: Depth::Mid,
+        }));
+        renderer_controller.draw(Primitive::Line(Line {
+            from: (self.global_layout.horizontal_divide, self.global_layout.vertical_divide),
+            to: (self.global_layout.horizontal_divide, 1.0),
+            color: Color::BLUE,
+            depth: Depth::Mid,
+        }));
         renderer_controller.set_transform(self.sequencer_transform);
         self.sequencer_interface.draw(renderer_controller);
     }
