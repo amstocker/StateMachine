@@ -12,6 +12,13 @@ use wgpu::{util::StagingBelt, TextureView, DepthStencilState};
 use winit::window::Window;
 
 
+pub const CLEAR_COLOR: wgpu::Color = wgpu::Color {
+    r: 255.0 / 255.0,
+    g: 250.0 / 255.0,
+    b: 235.0 / 255.0,
+    a: 1.0
+};
+
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
 pub enum Primitive {
@@ -74,12 +81,7 @@ impl<'r> RendererController<'r> {
 impl Renderer {
     pub fn init(window: &Window) -> Self {
         let size = window.inner_size();
-        let clear_color = wgpu::Color {
-            r: 255.0 / 255.0,
-            g: 250.0 / 255.0,
-            b: 235.0 / 255.0,
-            a: 1.0
-        };
+        let clear_color = CLEAR_COLOR;
 
         let instance = wgpu::Instance::new(wgpu::Backends::all());
         let surface = unsafe { instance.create_surface(window) };

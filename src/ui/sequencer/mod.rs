@@ -7,7 +7,7 @@ use winit::{event::{WindowEvent, MouseButton, ElementState}, window::Window};
 use crate::sequencer::*;
 use crate::ui::sequencer::state::*;
 use crate::ui::Depth;
-use crate::ui::render::{RendererController, Primitive, Quad, Text, Line};
+use crate::ui::render::{RendererController, Primitive, Quad, Text, Line, CLEAR_COLOR};
 use crate::ui::mouse::MousePosition;
 
 
@@ -157,7 +157,7 @@ impl SequencerInterface {
                     ChannelAction::CreateJunction => {
                         match (button, element_state) {
                             (MouseButton::Left, ElementState::Pressed) => {
-                                self.handle_add_junction(
+                                self.handle_create_junction(
                                     channel_index,
                                     channel_location,
                                     Junction {
@@ -174,7 +174,7 @@ impl SequencerInterface {
                     ChannelAction::SetPlayhead => {
                         match element_state {
                             ElementState::Pressed => {
-                                self.set_playhead(
+                                self.handle_set_playhead(
                                     channel_index,
                                     Playhead {
                                         state: PlayheadState::Playing,
@@ -221,7 +221,7 @@ impl SequencerInterface {
         ).unwrap();
     }
 
-    pub fn handle_add_junction(&mut self, channel_index: usize, channel_location: u64, model: Junction) -> State {
+    pub fn handle_create_junction(&mut self, channel_index: usize, channel_location: u64, model: Junction) -> State {
         let channel = &mut self.channels[channel_index];
         channel.junctions[channel.active_junctions] = JunctionInterface {
             model
@@ -262,7 +262,7 @@ impl SequencerInterface {
         channel.active_clips += 1;
     }
 
-    pub fn set_playhead(&mut self, channel_index: usize, playhead: Playhead) {
+    pub fn handle_set_playhead(&mut self, channel_index: usize, playhead: Playhead) {
         self.controller.control_message_sender.push(
             SequencerControlMessage::SyncPlayhead {
                 index: ChannelItemIndex {
@@ -312,30 +312,20 @@ impl SequencerInterface {
                 _ => {},
             }
 
-            renderer_controller.draw(Primitive::Text(Text {
-                text: format!("{:?}", playhead),
-                position: (0.3, y),
-                scale: 30.0,
-                color: Color::BLACK,
-                depth: Depth::Top
-            }));
             renderer_controller.draw(Primitive::Line(Line {
                 from: (0.0, y),
                 to: (1.0, y),
                 color: Color::BLACK,
-                depth: Depth::Back,
+                depth: Depth::Mid,
             }));
 
             let dy = inv * style::JUNCTION_LANE_PROPORTION;
-            renderer_controller.draw(Primitive::Line(Line {
-                from: (0.0, y - dy),
-                to: (1.0, y - dy),
-                color: Color {
-                    r: 230.0 / 255.0,
-                    g: 177.0 / 255.0,
-                    b: 46.0 / 255.0,
-                    a: 1.0,
-                },
+            let Color { r, g, b, a } = CLEAR_COLOR;
+            let s = 0.9;
+            renderer_controller.draw(Primitive::Quad(Quad {
+                position: (0.0, y - dy),
+                size: (1.0, dy),
+                color: Color { r: s * r, g: s * g, b: s * b, a },
                 depth: Depth::Back,
             }));
         }
