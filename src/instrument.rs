@@ -2,7 +2,7 @@ use wgpu::Color;
 use winit::window::{Window, CursorIcon};
 use winit::event::{WindowEvent, MouseButton, ElementState};
 
-use crate::ui::layout::{GlobalLayout, GlobalLayoutTransforms};
+use crate::ui::layout::{ThreePanelLayout, ThreePanelLayoutTransform};
 use crate::ui::render::{RendererController, Primitive, Line};
 use crate::ui::sequencer::{SequencerInterface};
 use crate::ui::mouse::MousePosition;
@@ -13,7 +13,7 @@ use crate::sound::{Output, SoundBankController, Float, SoundBank};
 
 
 pub struct Instrument {
-    global_layout: GlobalLayout,
+    global_layout: ThreePanelLayout,
     sequencer_interface: SequencerInterface,
     sequencer_transform: Transform,
     sound_bank_controller: SoundBankController<Float>,
@@ -72,15 +72,15 @@ impl Application for Instrument {
             source_shift: 0,
         });
 
-        let global_layout = GlobalLayout {
-            vertical_divide: 0.2,
-            horizontal_divide: 0.2,
+        let global_layout = ThreePanelLayout {
+            vertical_divide: 0.3,
+            horizontal_divide: 0.2
         };
 
-        let GlobalLayoutTransforms {
+        let ThreePanelLayoutTransform {
             main_panel_transform: sequencer_transform,
             ..
-        } = global_layout.build_transforms();
+        } = global_layout.transform();
 
         Self {
             global_layout,

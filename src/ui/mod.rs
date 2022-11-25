@@ -64,6 +64,19 @@ impl Transform {
             )
         }
     }
+
+    pub fn then(&self, next: Transform) -> Transform {
+        Transform {
+            translate: (
+                next.scale.0 * self.translate.0 + next.translate.0,
+                next.scale.1 * self.translate.1 + next.translate.1
+            ),
+            scale: (
+                self.scale.0 * next.scale.0,
+                self.scale.1 * next.scale.1
+            )
+        }
+    }
 }
 
 #[repr(C)]
