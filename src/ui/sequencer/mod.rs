@@ -1,3 +1,5 @@
+mod style;
+
 use wgpu::Color;
 use winit::{event::{WindowEvent, MouseButton, ElementState}, window::{Window, CursorIcon}};
 
@@ -8,10 +10,75 @@ use crate::sequencer::{
     SequencerSummary, DEFAULT_CHANNEL_LENGTH, SequencerController, SequencerEvent, SequencerControlMessage,
     ChannelItemIndex, Playhead, PlayheadState, PlayheadDirection
 };
-use crate::ui::render::{Quad, Text, Line};
+use crate::ui::Depth;
+use crate::ui::render::{RendererController, Primitive, Quad, Text};
 use crate::ui::mouse::MousePosition;
 
-use super::{render::{RendererController, Primitive}, Depth};
+
+#[derive(Debug, Default, Clone, Copy)]
+enum Action {
+    Channel {
+        channel_action: ChannelAction,
+        channel_index: usize,
+        channel_location: u64
+    },
+    #[default] NoAction
+}
+
+impl Action {
+    fn cursor_icon(&self) -> CursorIcon {
+        match self {
+            Action::Channel { channel_action: action, .. } => {
+                match action {
+                    ChannelAction::GrabClip { .. } => CursorIcon::Grab,
+                    ChannelAction::CreateJunction => CursorIcon::Default,
+                    ChannelAction::ModifyJunction => CursorIcon::Default,
+                    ChannelAction::SetPlayhead => CursorIcon::Crosshair,
+                }
+            },
+            Action::NoAction => CursorIcon::Default
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ChannelAction {
+    GrabClip {
+        clip_index: usize
+    },
+    CreateJunction,
+    ModifyJunction,
+    SetPlayhead
+}
+
+#[derive(Debug, Clone, Copy)]
+enum State {
+    GrabbingClip {
+        channel_index: usize,
+        clip_index: usize,
+        relative_location: u64
+    },
+    PotentialAction {
+        action: Action
+    },
+}
+
+impl Default for State {
+    fn default() -> Self {
+        State::PotentialAction { action: Action::NoAction }
+    }
+}
+
+impl State {
+    fn cursor_icon(&self) -> CursorIcon {
+        match self {
+            State::GrabbingClip { .. } => CursorIcon::Grabbing,
+            State::PotentialAction { action } => {
+                action.cursor_icon()
+            }
+        }
+    }
+}
 
 
 #[derive(Debug, Default)]
@@ -39,13 +106,7 @@ pub struct SequencerInterface {
     summary: SequencerSummary,
     channel_length: u64,
     mouse_position: MousePosition,
-    hover_channel_index: usize,
-    hover_channel_location: u64,
-    hover_clip_index: Option<usize>,
-    grabbing: bool,
-    grab_channel_index: usize,
-    grab_clip_index: usize,
-    grab_rel_location: u64
+    state: State
 }
 
 impl SequencerInterface {
@@ -57,120 +118,154 @@ impl SequencerInterface {
             summary: Default::default(),
             channel_length: DEFAULT_CHANNEL_LENGTH,
             mouse_position: MousePosition::default(),
-            hover_channel_index: 0,
-            hover_channel_location: 0,
-            hover_clip_index: None,
-            grabbing: false,
-            grab_channel_index: 0,
-            grab_clip_index: 0,
-            grab_rel_location: 0
+            state: State::default(),
         }
     }
 
     pub fn handle_window_event(&mut self, event: &WindowEvent, window: &Window) {
-        match event {
-            WindowEvent::MouseInput { button, state, .. } => {
-                if self.hover_clip_index.is_some() {
-                    match (button, state) {
-                        (MouseButton::Left, ElementState::Pressed) => {
-                            self.handle_clip_grab();
-                        },
-                        (MouseButton::Left, ElementState::Released) => {
-                            self.handle_clip_drop();
-                        },
-                        _ => {}
-                    }
-                } else {
-                    match state {
-                        ElementState::Pressed => {
-                            self.set_playhead(self.hover_channel_index, Playhead {
-                                state: PlayheadState::Playing,
-                                location: self.hover_channel_location,
-                                direction: match button {
-                                    MouseButton::Left => PlayheadDirection::Right,
-                                    _ => PlayheadDirection::Left
-                                },
-                            });
-                        },
-                        _ => {},
-                    }
+        self.state = match event {
+            WindowEvent::MouseInput { button, state: element_state, .. } => {
+                match self.state {
+                    State::GrabbingClip { .. } => {
+                        match (button, element_state) {
+                            (MouseButton::Left, ElementState::Released) => {
+                                self.get_potential_action()
+                            },
+                            _ => self.state
+                        }
+                    },
+                    State::PotentialAction { action } => {
+                        self.handle_action(action, button, element_state)
+                    },
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
                 self.mouse_position = MousePosition::from_physical(position, window.inner_size());
-                self.hover_channel_index = (NUM_CHANNELS - 1 - (self.mouse_position.y * 4.0).floor() as usize)
-                    .min(NUM_CHANNELS)
-                    .max(0);
-                self.hover_channel_location = (self.channel_length as f32 * self.mouse_position.x).floor() as u64;
-                if self.grabbing {
-                    self.handle_clip_move();
-                } else {
-                    self.check_clip_hover();
+                match self.state {
+                    State::GrabbingClip {
+                        channel_index,
+                        clip_index,
+                        relative_location
+                    } => {
+                        self.handle_clip_move(channel_index, clip_index, relative_location);
+                        self.state
+                    },
+                    _ => {
+                        self.get_potential_action()
+                    },
                 }
             }
-            _ => {}
+            _ => self.state
         };
-        self.update_cursor_icon(window);
+        window.set_cursor_icon(self.state.cursor_icon());
     }
 
-    pub fn update_cursor_icon(&self, window: &Window) {
-        if !self.grabbing {
-            if self.hover_clip_index.is_some() {
-                window.set_cursor_icon(CursorIcon::Grab);
-            } else {
-                window.set_cursor_icon(CursorIcon::Default);
+    fn get_potential_action(&self) -> State {
+        let (channel_index, channel_location) = mouse_position_to_channel(
+            self.mouse_position,
+            self.channel_length
+        );
+        let channel = &self.channels[channel_index];
+        for clip_index in 0..channel.active_clips {
+            if channel.clips[clip_index].quad.contains(self.mouse_position) {
+                return State::PotentialAction { 
+                    action: Action::Channel {
+                        channel_action: ChannelAction::GrabClip { 
+                            clip_index
+                        },
+                        channel_index,
+                        channel_location
+                    }
+                }
             }
-        } else {
-            window.set_cursor_icon(CursorIcon::Grabbing);
+        }
+        State::PotentialAction { 
+            action: Action::Channel {
+                channel_action: ChannelAction::SetPlayhead,
+                channel_index,
+                channel_location
+            }
         }
     }
 
-    pub fn handle_clip_grab(&mut self) {
-        self.grabbing = true;
-        self.grab_channel_index = self.hover_channel_index;
-        self.grab_clip_index = self.hover_clip_index.unwrap();
-        
-        let clip = &mut self.channels[self.grab_channel_index].clips[self.grab_clip_index];
-        self.grab_rel_location = self.hover_channel_location - clip.model.channel_location_start;
+    fn handle_action(&mut self, action: Action, button: &MouseButton, element_state: &ElementState) -> State {
+        match action {
+            Action::Channel {
+                channel_action,
+                channel_index,
+                channel_location
+            } => {
+                match channel_action {
+                    ChannelAction::GrabClip { clip_index } => {
+                        match (button, element_state) {
+                            (MouseButton::Left, ElementState::Pressed) => {
+                                self.handle_clip_grab(channel_index, channel_location, clip_index)
+                            },
+                            _ => self.state
+                        }
+                    },
+                    ChannelAction::CreateJunction => todo!(),
+                    ChannelAction::ModifyJunction => todo!(),
+                    ChannelAction::SetPlayhead => {
+                        match element_state {
+                            ElementState::Pressed => {
+                                self.set_playhead(
+                                    channel_index,
+                                    Playhead {
+                                        state: PlayheadState::Playing,
+                                        location: channel_location,
+                                        direction: match button {
+                                            MouseButton::Left => PlayheadDirection::Right,
+                                            _ => PlayheadDirection::Left
+                                        },
+                                    }
+                                );
+                            },
+                            _ => {},
+                        }
+                        self.state
+                    },
+                }
+            },
+            _ => self.state,
+        }
     }
 
-    pub fn handle_clip_move(&mut self) {
-        let clip = &mut self.channels[self.grab_channel_index].clips[self.grab_clip_index];
+    fn handle_clip_grab(&mut self, channel_index: usize, channel_location: u64, clip_index: usize) -> State {
+        let clip = &mut self.channels[channel_index].clips[clip_index];
+        State::GrabbingClip {
+            relative_location: channel_location - clip.model.channel_location_start,
+            channel_index,
+            clip_index,
+        }
+    }
+
+    pub fn handle_clip_move(&mut self, channel_index: usize, clip_index: usize, relative_location: u64) {
+        let (_, channel_location) = mouse_position_to_channel(
+            self.mouse_position,
+            self.channel_length
+        );
+        let clip = &mut self.channels[channel_index].clips[clip_index];
         let width = clip.model.channel_location_end - clip.model.channel_location_start;
-        let start = self.hover_channel_location
-            .saturating_sub(self.grab_rel_location)
+        let start = channel_location
+            .saturating_sub(relative_location)
             .min(self.channel_length - width);
         clip.model.channel_location_start  = start;
         clip.model.channel_location_end = start + width;
         clip.quad = clip_to_quad(
-            self.grab_channel_index,
+            channel_index,
             self.channel_length,
             clip.model
         );
         self.controller.control_message_sender.push(
             SequencerControlMessage::SyncClip {
                 index: ChannelItemIndex {
-                    channel_index: self.grab_channel_index,
-                    item_index: self.grab_clip_index
+                    channel_index,
+                    item_index: clip_index
                 },
                 clip: clip.model
             }
         ).unwrap();
-    }
-
-    pub fn handle_clip_drop(&mut self) {
-        self.grabbing = false;
-    }
-
-    pub fn check_clip_hover(&mut self) {
-        let channel = &self.channels[self.hover_channel_index];
-        for clip_index in 0..channel.active_clips {
-            if channel.clips[clip_index].quad.contains(self.mouse_position) {
-                self.hover_clip_index = Some(clip_index);
-                return;
-            }
-        }
-        self.hover_clip_index = None;
     }
 
     pub fn add_clip(&mut self, channel_index: usize, model: Clip) {
@@ -193,7 +288,6 @@ impl SequencerInterface {
             }
         ).unwrap();
         channel.active_clips += 1;
-        
     }
 
     pub fn set_playhead(&mut self, channel_index: usize, playhead: Playhead) {
@@ -206,17 +300,6 @@ impl SequencerInterface {
                 playhead
             }
         ).unwrap();
-    }
-
-    pub fn start_channel(&mut self, channel_index: usize) {
-        self.set_playhead(
-            channel_index,
-            Playhead {
-                state: PlayheadState::Playing,
-                location: 0,
-                direction: PlayheadDirection::Right,
-            }
-        );
     }
 
     pub fn update(&mut self) {
@@ -262,6 +345,18 @@ impl SequencerInterface {
     }
 }
 
+
+fn mouse_position_to_channel(
+    mouse_position: MousePosition,
+    channel_length: u64,
+) -> (usize, u64) {
+    (
+        (NUM_CHANNELS - 1 - (mouse_position.y * 4.0).floor() as usize)
+            .clamp(0, NUM_CHANNELS - 1),
+        (channel_length as f32 * mouse_position.x).floor() as u64
+    )
+}
+
 fn clip_to_quad(channel_index: usize, channel_length: u64, clip: Clip) -> Quad {
     let w = (clip.channel_location_end as f32 - clip.channel_location_start as f32) / channel_length as f32;
     let h = 1.0 / NUM_CHANNELS as f32;
@@ -270,7 +365,7 @@ fn clip_to_quad(channel_index: usize, channel_length: u64, clip: Clip) -> Quad {
     Quad {
         position: (x, y),
         size: (w, h),
-        color: Color { r: 0.2, g: 0.4, b: 0.6, a: 1.0 },
+        color: style::CLIP_COLOR,
         depth: Depth::Mid
     }
 }
