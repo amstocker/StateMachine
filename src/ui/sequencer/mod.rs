@@ -1,78 +1,14 @@
 mod style;
+mod state;
 
 use wgpu::Color;
-use winit::{event::{WindowEvent, MouseButton, ElementState}, window::{Window, CursorIcon}};
+use winit::{event::{WindowEvent, MouseButton, ElementState}, window::Window};
 
-use crate::sequencer::{
-    NUM_CHANNELS,
-    Clip, MAX_CLIPS_PER_CHANNEL,
-    Junction, MAX_JUNCTIONS_PER_CHANNEL, 
-    SequencerSummary, DEFAULT_CHANNEL_LENGTH, SequencerController, SequencerEvent, SequencerControlMessage,
-    ChannelItemIndex, Playhead, PlayheadState, PlayheadDirection
-};
+use crate::sequencer::*;
+use crate::ui::sequencer::state::*;
 use crate::ui::Depth;
 use crate::ui::render::{RendererController, Primitive, Quad, Text};
 use crate::ui::mouse::MousePosition;
-
-
-#[derive(Debug, Default, Clone, Copy)]
-enum Action {
-    Channel {
-        channel_action: ChannelAction,
-        channel_index: usize,
-        channel_location: u64
-    },
-    #[default] NoAction
-}
-
-#[derive(Debug, Clone, Copy)]
-enum ChannelAction {
-    GrabClip {
-        clip_index: usize
-    },
-    CreateJunction,
-    ModifyJunction,
-    SetPlayhead
-}
-
-#[derive(Debug, Clone, Copy)]
-enum State {
-    GrabbingClip {
-        channel_index: usize,
-        clip_index: usize,
-        relative_location: u64
-    },
-    Hovering {
-        potential_action: Action
-    },
-}
-
-impl Default for State {
-    fn default() -> Self {
-        State::Hovering { potential_action: Action::NoAction }
-    }
-}
-
-impl State {
-    fn cursor_icon(&self) -> CursorIcon {
-        match self {
-            State::GrabbingClip { .. } => CursorIcon::Grabbing,
-            State::Hovering { potential_action } => {
-                match potential_action {
-                    Action::Channel { channel_action: action, .. } => {
-                        match action {
-                            ChannelAction::GrabClip { .. } => CursorIcon::Grab,
-                            ChannelAction::CreateJunction => CursorIcon::Default,
-                            ChannelAction::ModifyJunction => CursorIcon::Default,
-                            ChannelAction::SetPlayhead => CursorIcon::Crosshair,
-                        }
-                    },
-                    Action::NoAction => CursorIcon::Default
-                }
-            }
-        }
-    }
-}
 
 
 #[derive(Debug, Default)]
@@ -245,7 +181,7 @@ impl SequencerInterface {
             .saturating_sub(relative_location)
             .min(self.channel_length - width);
         
-        clip.model.channel_location_start  = start;
+        clip.model.channel_location_start = start;
         clip.model.channel_location_end = start + width;
         clip.quad = clip_to_quad(
             channel_index,
@@ -342,7 +278,7 @@ impl SequencerInterface {
 
 
 fn mouse_position_to_channel_index(mouse_position: MousePosition) -> usize {
-    (NUM_CHANNELS - 1 - (mouse_position.y * 4.0).floor() as usize)
+    (NUM_CHANNELS - 1 - (mouse_position.y * NUM_CHANNELS as f32).floor() as usize)
         .clamp(0, NUM_CHANNELS - 1)
 }
 
