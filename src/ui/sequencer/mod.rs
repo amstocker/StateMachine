@@ -201,7 +201,12 @@ impl SequencerInterface {
                     ChannelAction::GrabClip { clip_index } => {
                         match (button, element_state) {
                             (MouseButton::Left, ElementState::Pressed) => {
-                                self.handle_clip_grab(channel_index, channel_location, clip_index)
+                                let clip = &self.channels[channel_index].clips[clip_index];
+                                State::GrabbingClip {
+                                    relative_location: channel_location - clip.model.channel_location_start,
+                                    channel_index,
+                                    clip_index,
+                                }
                             },
                             _ => self.state
                         }
@@ -233,20 +238,10 @@ impl SequencerInterface {
         }
     }
 
-    fn handle_clip_grab(&mut self, channel_index: usize, channel_location: u64, clip_index: usize) -> State {
-        let clip = &mut self.channels[channel_index].clips[clip_index];
-        State::GrabbingClip {
-            relative_location: channel_location - clip.model.channel_location_start,
-            channel_index,
-            clip_index,
-        }
-    }
-
     pub fn handle_clip_move(&mut self, channel_index: usize, clip_index: usize, relative_location: u64) {
-        let channel_location = mouse_position_to_channel_location(self.mouse_position, self.channel_length);
         let clip = &mut self.channels[channel_index].clips[clip_index];
         let width = clip.model.channel_location_end - clip.model.channel_location_start;
-        let start = channel_location
+        let start = mouse_position_to_channel_location(self.mouse_position, self.channel_length)
             .saturating_sub(relative_location)
             .min(self.channel_length - width);
         
