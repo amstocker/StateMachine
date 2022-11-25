@@ -25,22 +25,6 @@ enum Action {
     #[default] NoAction
 }
 
-impl Action {
-    fn cursor_icon(&self) -> CursorIcon {
-        match self {
-            Action::Channel { channel_action: action, .. } => {
-                match action {
-                    ChannelAction::GrabClip { .. } => CursorIcon::Grab,
-                    ChannelAction::CreateJunction => CursorIcon::Default,
-                    ChannelAction::ModifyJunction => CursorIcon::Default,
-                    ChannelAction::SetPlayhead => CursorIcon::Crosshair,
-                }
-            },
-            Action::NoAction => CursorIcon::Default
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 enum ChannelAction {
     GrabClip {
@@ -58,14 +42,14 @@ enum State {
         clip_index: usize,
         relative_location: u64
     },
-    PotentialAction {
-        action: Action
+    Hovering {
+        potential_action: Action
     },
 }
 
 impl Default for State {
     fn default() -> Self {
-        State::PotentialAction { action: Action::NoAction }
+        State::Hovering { potential_action: Action::NoAction }
     }
 }
 
@@ -73,8 +57,18 @@ impl State {
     fn cursor_icon(&self) -> CursorIcon {
         match self {
             State::GrabbingClip { .. } => CursorIcon::Grabbing,
-            State::PotentialAction { action } => {
-                action.cursor_icon()
+            State::Hovering { potential_action } => {
+                match potential_action {
+                    Action::Channel { channel_action: action, .. } => {
+                        match action {
+                            ChannelAction::GrabClip { .. } => CursorIcon::Grab,
+                            ChannelAction::CreateJunction => CursorIcon::Default,
+                            ChannelAction::ModifyJunction => CursorIcon::Default,
+                            ChannelAction::SetPlayhead => CursorIcon::Crosshair,
+                        }
+                    },
+                    Action::NoAction => CursorIcon::Default
+                }
             }
         }
     }
@@ -122,54 +116,14 @@ impl SequencerInterface {
         }
     }
 
-    pub fn handle_window_event(&mut self, event: &WindowEvent, window: &Window) {
-        self.state = match event {
-            WindowEvent::MouseInput { button, state: element_state, .. } => {
-                match self.state {
-                    State::GrabbingClip { .. } => {
-                        match (button, element_state) {
-                            (MouseButton::Left, ElementState::Released) => {
-                                self.get_potential_action()
-                            },
-                            _ => self.state
-                        }
-                    },
-                    State::PotentialAction { action } => {
-                        self.handle_action(action, button, element_state)
-                    },
-                }
-            }
-            WindowEvent::CursorMoved { position, .. } => {
-                self.mouse_position = MousePosition::from_physical(position, window.inner_size());
-                match self.state {
-                    State::GrabbingClip {
-                        channel_index,
-                        clip_index,
-                        relative_location
-                    } => {
-                        self.handle_clip_move(channel_index, clip_index, relative_location);
-                        self.state
-                    },
-                    _ => {
-                        self.get_potential_action()
-                    },
-                }
-            }
-            _ => self.state
-        };
-        window.set_cursor_icon(self.state.cursor_icon());
-    }
-
     fn get_potential_action(&self) -> State {
-        let (channel_index, channel_location) = mouse_position_to_channel(
-            self.mouse_position,
-            self.channel_length
-        );
+        let channel_index = mouse_position_to_channel_index(self.mouse_position);
+        let channel_location = mouse_position_to_channel_location(self.mouse_position, self.channel_length);
         let channel = &self.channels[channel_index];
         for clip_index in 0..channel.active_clips {
             if channel.clips[clip_index].quad.contains(self.mouse_position) {
-                return State::PotentialAction { 
-                    action: Action::Channel {
+                return State::Hovering { 
+                    potential_action: Action::Channel {
                         channel_action: ChannelAction::GrabClip { 
                             clip_index
                         },
@@ -179,12 +133,62 @@ impl SequencerInterface {
                 }
             }
         }
-        State::PotentialAction { 
-            action: Action::Channel {
+        State::Hovering { 
+            potential_action: Action::Channel {
                 channel_action: ChannelAction::SetPlayhead,
                 channel_index,
                 channel_location
             }
+        }
+    }
+
+    pub fn handle_window_event(&mut self, event: &WindowEvent, window: &Window) {
+        self.state = match event {
+            WindowEvent::MouseInput { button, state: element_state, .. } => {
+                self.handle_mouse_input(button, element_state)
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                self.mouse_position = MousePosition::from_physical(position, window.inner_size());
+                self.handle_cursor_move()
+            }
+            _ => self.state
+        };
+        window.set_cursor_icon(self.state.cursor_icon());
+    }
+
+    fn handle_mouse_input(&mut self, button: &MouseButton, element_state: &ElementState) -> State {
+        match self.state {
+            State::GrabbingClip { .. } => {
+                match (button, element_state) {
+                    (MouseButton::Left, ElementState::Released) => {
+                        State::default()
+                    },
+                    _ => self.state
+                }
+            },
+            State::Hovering { potential_action } => {
+                self.handle_action(
+                    potential_action,
+                    button,
+                    element_state
+                )
+            },
+        }
+    }
+
+    fn handle_cursor_move(&mut self) -> State {
+        match self.state {
+            State::GrabbingClip {
+                channel_index,
+                clip_index,
+                relative_location
+            } => {
+                self.handle_clip_move(channel_index, clip_index, relative_location);
+                self.state
+            },
+            _ => {
+                self.get_potential_action()
+            },
         }
     }
 
@@ -241,10 +245,7 @@ impl SequencerInterface {
     }
 
     pub fn handle_clip_move(&mut self, channel_index: usize, clip_index: usize, relative_location: u64) {
-        let (_, channel_location) = mouse_position_to_channel(
-            self.mouse_position,
-            self.channel_length
-        );
+        let channel_location = mouse_position_to_channel_location(self.mouse_position, self.channel_length);
         let clip = &mut self.channels[channel_index].clips[clip_index];
         let width = clip.model.channel_location_end - clip.model.channel_location_start;
         let start = channel_location
@@ -346,15 +347,13 @@ impl SequencerInterface {
 }
 
 
-fn mouse_position_to_channel(
-    mouse_position: MousePosition,
-    channel_length: u64,
-) -> (usize, u64) {
-    (
-        (NUM_CHANNELS - 1 - (mouse_position.y * 4.0).floor() as usize)
-            .clamp(0, NUM_CHANNELS - 1),
-        (channel_length as f32 * mouse_position.x).floor() as u64
-    )
+fn mouse_position_to_channel_index(mouse_position: MousePosition) -> usize {
+    (NUM_CHANNELS - 1 - (mouse_position.y * 4.0).floor() as usize)
+        .clamp(0, NUM_CHANNELS - 1)
+}
+
+fn mouse_position_to_channel_location(mouse_position: MousePosition, channel_length: u64) -> u64 {
+    (channel_length as f32 * mouse_position.x).floor() as u64
 }
 
 fn clip_to_quad(channel_index: usize, channel_length: u64, clip: Clip) -> Quad {
