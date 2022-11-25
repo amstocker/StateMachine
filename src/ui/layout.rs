@@ -1,4 +1,4 @@
-use super::Transform;
+use crate::ui::Transform;
 
 
 #[derive(Debug)]
@@ -15,12 +15,8 @@ pub struct ThreePanelLayout {
 
 impl ThreePanelLayout {
     pub fn transform(&self) -> ThreePanelLayoutTransform {
-        let vertical = Vertical {
-            divide: self.vertical_divide
-        }.transform();
-        let horizontal = Horizontal {
-            divide: self.horizontal_divide
-        }.transform();
+        let vertical = VerticalTransform::new(self.vertical_divide);
+        let horizontal = HorizontalTransform::new(self.horizontal_divide);
         ThreePanelLayoutTransform { 
             main_panel_transform: vertical.top.then(horizontal.right),
             side_panel_transform: vertical.top.then(horizontal.left),
@@ -35,23 +31,28 @@ pub struct HorizontalTransform {
     right: Transform
 }
 
+impl HorizontalTransform {
+    pub fn new(divide: f32) -> Self {
+        Self {
+            left: Transform {
+                translate: (0.0, 0.0),
+                scale: (divide, 1.0)
+            },
+            right: Transform {
+                translate: (divide, 0.0),
+                scale: (1.0 - divide, 1.0)
+            }
+        }
+    }
+}
+
 pub struct Horizontal {
     pub divide: f32
 }
 
 impl Horizontal {
     pub fn transform(&self) -> HorizontalTransform {
-        let d = self.divide;
-        HorizontalTransform {
-            left: Transform {
-                translate: (0.0, 0.0),
-                scale: (d, 1.0)
-            },
-            right: Transform {
-                translate: (d, 0.0),
-                scale: (1.0 - d, 1.0)
-            }
-        }
+        HorizontalTransform::new(self.divide)
     }
 }
 
@@ -61,22 +62,27 @@ pub struct VerticalTransform {
     bottom: Transform
 }
 
+impl VerticalTransform {
+    pub fn new(divide: f32) -> Self {
+        Self {
+            top: Transform {
+                translate: (0.0, divide),
+                scale: (1.0, 1.0 - divide)
+            },
+            bottom: Transform {
+                translate: (0.0, 0.0),
+                scale: (1.0, divide)
+            }
+        }
+    }
+}
+
 pub struct Vertical {
     pub divide: f32
 }
 
 impl Vertical {
     pub fn transform(&self) -> VerticalTransform {
-        let d = self.divide;
-        VerticalTransform {
-            top: Transform {
-                translate: (0.0, d),
-                scale: (1.0, 1.0 - d)
-            },
-            bottom: Transform {
-                translate: (0.0, 0.0),
-                scale: (1.0, d)
-            }
-        }
+        VerticalTransform::new(self.divide)
     }
 }
