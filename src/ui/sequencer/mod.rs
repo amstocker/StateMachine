@@ -116,29 +116,25 @@ impl SequencerInterface {
         }
     }
 
-    fn get_potential_action(&self) -> State {
+    fn get_potential_action(&self) -> Action {
         let channel_index = mouse_position_to_channel_index(self.mouse_position);
         let channel_location = mouse_position_to_channel_location(self.mouse_position, self.channel_length);
         let channel = &self.channels[channel_index];
         for clip_index in 0..channel.active_clips {
             if channel.clips[clip_index].quad.contains(self.mouse_position) {
-                return State::Hovering { 
-                    potential_action: Action::Channel {
-                        channel_action: ChannelAction::GrabClip { 
-                            clip_index
-                        },
-                        channel_index,
-                        channel_location
-                    }
+                return Action::Channel {
+                    channel_action: ChannelAction::GrabClip { 
+                        clip_index
+                    },
+                    channel_index,
+                    channel_location
                 }
             }
         }
-        State::Hovering { 
-            potential_action: Action::Channel {
-                channel_action: ChannelAction::SetPlayhead,
-                channel_index,
-                channel_location
-            }
+        Action::Channel {
+            channel_action: ChannelAction::SetPlayhead,
+            channel_index,
+            channel_location
         }
     }
 
@@ -187,7 +183,9 @@ impl SequencerInterface {
                 self.state
             },
             _ => {
-                self.get_potential_action()
+                State::Hovering {
+                    potential_action: self.get_potential_action()
+                }
             },
         }
     }
@@ -251,6 +249,7 @@ impl SequencerInterface {
         let start = channel_location
             .saturating_sub(relative_location)
             .min(self.channel_length - width);
+        
         clip.model.channel_location_start  = start;
         clip.model.channel_location_end = start + width;
         clip.quad = clip_to_quad(

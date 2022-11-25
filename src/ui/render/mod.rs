@@ -62,6 +62,13 @@ impl<'r> RendererController<'r> {
             Primitive::Mesh => todo!(),
         }
     }
+
+    pub fn set_transform(&mut self) {
+        todo!();
+
+        // Set the "global transform",
+        //  might need to store in instance buffer...
+    }
 }
 
 impl Renderer {
