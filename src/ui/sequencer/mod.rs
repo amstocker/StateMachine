@@ -12,6 +12,8 @@ use crate::ui::mouse::MousePosition;
 use crate::ui::application::CLEAR_COLOR;
 
 
+pub const MARKER_LINE_WIDTH: f32 = 0.002;
+
 #[derive(Debug, Default)]
 pub struct ClipInterface {
     model: Clip,
@@ -141,7 +143,8 @@ impl SequencerInterface {
                                     junction_type: JunctionType::Jump {
                                         destination_channel_index: index,
                                         destination_location: location,
-                                        split: false
+                                        // split: false,
+                                        split: true
                                     }
                                 }
                             );
@@ -327,35 +330,32 @@ impl SequencerInterface {
                 renderer_controller.draw(Primitive::Quad(clip.quad));
             }
             for junction in channel.junctions.iter().filter(|junction| junction.model.enabled) {
-                let x = junction.model.location as f32 / self.channel_length as f32;
                 match junction.model.junction_type {
                     JunctionType::Jump {
                         destination_channel_index,
                         destination_location,
                         ..
                     } => {
-                        renderer_controller.draw(Primitive::Line(Line {
-                            from: (x, y),
-                            to: (x, y - inv),
-                            color: Color::BLUE,
-                            depth: Depth::Front,
-                        }));
-                        let x_dest = destination_location as f32 / self.channel_length as f32;
-                        let y_dest = inv * (NUM_CHANNELS as f32 - destination_channel_index as f32);
-                        renderer_controller.draw(Primitive::Line(Line {
-                            from: (x_dest, y_dest),
-                            to: (x_dest, y_dest - inv),
-                            color: Color::BLUE,
-                            depth: Depth::Front,
-                        }));
+                        let (
+                            source_marker,
+                            dest_marker
+                        ) = jump_junction_to_primitives(
+                            channel_index,
+                            junction.model.location,
+                            destination_channel_index,
+                            destination_location,
+                            self.channel_length
+                        );
+                        renderer_controller.draw(source_marker);
+                        renderer_controller.draw(dest_marker);
                     },
                     JunctionType::Reflect => {
-                        renderer_controller.draw(Primitive::Line(Line {
-                            from: (x, y),
-                            to: (x, y - inv),
-                            color: Color::GREEN,
-                            depth: Depth::Front,
-                        }));
+                        let marker = reflect_junction_to_primitive(
+                            channel_index,
+                            junction.model.location,
+                            self.channel_length
+                        );
+                        renderer_controller.draw(marker);
                     },
                     JunctionType::Stop => todo!()
                 }
@@ -424,14 +424,57 @@ fn clip_to_quad(channel_index: usize, channel_length: u64, clip: Clip) -> Quad {
 }
 
 fn playhead_to_primitive(channel_index: usize, channel_length: u64, playhead: Playhead) -> Primitive {
-    let w = 0.002;
     let h = 1.0 / NUM_CHANNELS as f32;
     let x = playhead.location as f32 / channel_length as f32;
     let y = 1.0 - h - (channel_index as f32 / NUM_CHANNELS as f32);
     Primitive::Quad(Quad {
         position: (x, y),
-        size: (w, h),
+        size: (MARKER_LINE_WIDTH, h),
         color: Color::RED,
         depth: Depth::Front
     })
+}
+
+fn reflect_junction_to_primitive(
+    channel_index: usize,
+    channel_location: u64,
+    channel_length: u64
+) -> Primitive {
+    let h = 1.0 / NUM_CHANNELS as f32;
+    let x = channel_location as f32 / channel_length as f32;
+    let y = h * (NUM_CHANNELS as f32 - channel_index as f32);
+    Primitive::Quad(Quad {
+        position: (x, y - h),
+        size: (MARKER_LINE_WIDTH, h),
+        color: Color::GREEN,
+        depth: Depth::Front,
+    })
+}
+
+fn jump_junction_to_primitives(
+    source_channel_index: usize,
+    source_channel_location: u64,
+    destination_channel_index: usize,
+    destination_location: u64,
+    channel_length: u64
+) -> (Primitive, Primitive) {
+    let h = 1.0 / NUM_CHANNELS as f32;
+    let x = source_channel_location as f32 / channel_length as f32;
+    let y = h * (NUM_CHANNELS as f32 - source_channel_index as f32);
+    let x_dest = destination_location as f32 / channel_length as f32;
+    let y_dest = h * (NUM_CHANNELS as f32 - destination_channel_index as f32);
+    (
+        Primitive::Quad(Quad {
+            position: (x, y - h),
+            size: (MARKER_LINE_WIDTH, h),
+            color: Color::BLUE,
+            depth: Depth::Front,
+        }),
+        Primitive::Quad(Quad {
+            position: (x_dest, y_dest - h),
+            size: (MARKER_LINE_WIDTH, h),
+            color: Color::BLUE,
+            depth: Depth::Front,
+        })
+    )
 }
