@@ -1,6 +1,13 @@
 use crate::ui::Transform;
 
 
+pub enum RelativePosition {
+    Above,
+    Below,
+    Left,
+    Right
+}
+
 #[derive(Debug)]
 pub struct ThreePanelLayoutTransform {
     pub main_panel_transform: Transform,

@@ -7,8 +7,9 @@ use winit::{event::{WindowEvent, MouseButton, ElementState}, window::Window};
 use crate::sequencer::*;
 use crate::ui::sequencer::state::*;
 use crate::ui::Depth;
-use crate::ui::primitive::{RendererController, Primitive, Quad, Text, Line, CLEAR_COLOR};
+use crate::ui::primitive::{RendererController, Primitive, Quad, Text, Line};
 use crate::ui::mouse::MousePosition;
+use crate::ui::application::CLEAR_COLOR;
 
 
 #[derive(Debug, Default)]
@@ -41,7 +42,6 @@ pub struct SequencerInterface {
 
 impl SequencerInterface {
     pub fn init(controller: SequencerController) -> Self {
-        // need global transform uniform
         Self {
             controller,
             channels: Default::default(),
@@ -115,6 +115,42 @@ impl SequencerInterface {
                     element_state
                 )
             },
+            State::CreatingJunction { 
+                source_channel_index,
+                source_channel_location
+            } => {
+                match (button, element_state) {
+                    (MouseButton::Left, ElementState::Released) => {
+                        let index = mouse_position_to_channel_index(self.mouse_position);
+                        let location = mouse_position_to_channel_location(self.mouse_position, self.channel_length);
+                        if index == source_channel_index {
+                            self.handle_create_junction(
+                                source_channel_index,
+                                Junction {
+                                    enabled: true,
+                                    location,
+                                    junction_type: JunctionType::Reflect
+                                }
+                            );
+                        } else {
+                            self.handle_create_junction(
+                                source_channel_index,
+                                Junction {
+                                    enabled: true,
+                                    location: source_channel_location,
+                                    junction_type: JunctionType::Jump {
+                                        destination_channel_index: index,
+                                        destination_location: location,
+                                        split: false
+                                    }
+                                }
+                            );
+                        }
+                        State::default()
+                    },
+                    _ => self.state
+                }
+            },
         }
     }
 
@@ -128,10 +164,15 @@ impl SequencerInterface {
                 self.handle_clip_move(channel_index, clip_index, relative_location);
                 self.state
             },
-            _ => {
-                State::Hovering {
+            State::Hovering { .. } => State::Hovering {
                     potential_action: self.get_potential_action()
-                }
+                },
+            State::CreatingJunction {
+                source_channel_index,
+                source_channel_location,
+                ..
+            } => {
+                self.state
             },
         }
     }
@@ -159,15 +200,9 @@ impl SequencerInterface {
                     },
                     ChannelAction::CreateJunction => {
                         match (button, element_state) {
-                            (MouseButton::Left, ElementState::Pressed) => {
-                                self.handle_create_junction(
-                                    channel_index,
-                                    Junction {
-                                        enabled: true,
-                                        location: channel_location,
-                                        junction_type: JunctionType::Reflect
-                                    }
-                                )
+                            (MouseButton::Left, ElementState::Pressed) => State::CreatingJunction {
+                                source_channel_index: channel_index,
+                                source_channel_location: channel_location
                             },
                             _ => self.state
                         }
@@ -223,7 +258,7 @@ impl SequencerInterface {
         ).unwrap();
     }
 
-    pub fn handle_create_junction(&mut self, channel_index: usize, model: Junction) -> State {
+    pub fn handle_create_junction(&mut self, channel_index: usize, model: Junction) {
         let channel = &mut self.channels[channel_index];
         channel.junctions[channel.active_junctions] = JunctionInterface {
             model
@@ -239,7 +274,6 @@ impl SequencerInterface {
         ).unwrap();
 
         channel.active_junctions += 1;
-        self.state
     }
 
     pub fn add_clip(&mut self, channel_index: usize, model: Clip) {
@@ -294,12 +328,37 @@ impl SequencerInterface {
             }
             for junction in channel.junctions.iter().filter(|junction| junction.model.enabled) {
                 let x = junction.model.location as f32 / self.channel_length as f32;
-                renderer_controller.draw(Primitive::Line(Line {
-                    from: (x, y),
-                    to: (x, y - inv),
-                    color: Color::GREEN,
-                    depth: Depth::Front,
-                }))
+                match junction.model.junction_type {
+                    JunctionType::Jump {
+                        destination_channel_index,
+                        destination_location,
+                        ..
+                    } => {
+                        renderer_controller.draw(Primitive::Line(Line {
+                            from: (x, y),
+                            to: (x, y - inv),
+                            color: Color::BLUE,
+                            depth: Depth::Front,
+                        }));
+                        let x_dest = destination_location as f32 / self.channel_length as f32;
+                        let y_dest = inv * (NUM_CHANNELS as f32 - destination_channel_index as f32);
+                        renderer_controller.draw(Primitive::Line(Line {
+                            from: (x_dest, y_dest),
+                            to: (x_dest, y_dest - inv),
+                            color: Color::BLUE,
+                            depth: Depth::Front,
+                        }));
+                    },
+                    JunctionType::Reflect => {
+                        renderer_controller.draw(Primitive::Line(Line {
+                            from: (x, y),
+                            to: (x, y - inv),
+                            color: Color::GREEN,
+                            depth: Depth::Front,
+                        }));
+                    },
+                    JunctionType::Stop => todo!()
+                }
             }
 
             let playhead = self.summary.playheads[channel_index];

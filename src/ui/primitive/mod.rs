@@ -16,13 +16,6 @@ use pollster::block_on;
 use crate::ui::Transform;
 
 
-pub const CLEAR_COLOR: wgpu::Color = wgpu::Color {
-    r: 255.0 / 255.0,
-    g: 250.0 / 255.0,
-    b: 235.0 / 255.0,
-    a: 1.0
-};
-
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
 pub enum Primitive {
@@ -32,6 +25,10 @@ pub enum Primitive {
     Mesh
 }
 
+
+pub trait Drawable {
+    fn draw(&self, renderer_controller: RendererController);
+}
 
 pub struct Renderer {
     surface: Surface,
@@ -91,15 +88,18 @@ impl<'r> RendererController<'r> {
         self.transform = transform;
     }
 
+    pub fn push_transform(&mut self, transform: Transform) {
+        self.transform = self.transform.then(transform);
+    }
+
     pub fn clear_transform(&mut self) {
         self.transform = Transform::identity();
     }
 }
 
 impl Renderer {
-    pub fn init(window: &Window) -> Self {
+    pub fn init(window: &Window, clear_color: Color) -> Self {
         let size = window.inner_size();
-        let clear_color = CLEAR_COLOR;
 
         let instance = Instance::new(Backends::all());
         let surface = unsafe { instance.create_surface(window) };

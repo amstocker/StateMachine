@@ -1,18 +1,13 @@
 use wgpu::Color;
 
-use crate::ui::{primitive::RendererController, Depth};
+use crate::ui::{primitive::RendererController, Depth, layout::RelativePosition};
 
 
-const TOOLTIP_DEPTH: Depth = Depth::Modal;
+const DEPTH: Depth = Depth::Modal;
 
-pub enum RelativePosition {
-    Above,
-    Below,
-    Left,
-    Right
-}
 
-pub struct Tooltip {
+
+pub struct PopupMenu {
     base_position: (f32, f32),
     relative_position: RelativePosition,
     background_color: Color,
@@ -22,7 +17,7 @@ pub struct Tooltip {
     label_padding: f32
 }
 
-impl Tooltip {
+impl PopupMenu {
     pub fn draw(&self, renderer_controller: RendererController) {
         let label_width = renderer_controller.text_length_to_width(
             self.label.len(),

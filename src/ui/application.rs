@@ -8,6 +8,13 @@ use winit::{
 use crate::ui::primitive::{Renderer, RendererController};
 
 
+pub const CLEAR_COLOR: wgpu::Color = wgpu::Color {
+    r: 255.0 / 255.0,
+    g: 250.0 / 255.0,
+    b: 235.0 / 255.0,
+    a: 1.0
+};
+
 pub trait ApplicationConfig {
     fn window_title(&self) -> &str;
 }
@@ -34,7 +41,7 @@ pub trait Application: 'static + Sized {
             .with_title(config.window_title())
             .build(&event_loop).unwrap();
    
-        let mut renderer = Renderer::init(&window);
+        let mut renderer = Renderer::init(&window, CLEAR_COLOR);
         
         let mut app = Self::init(config);
 

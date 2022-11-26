@@ -28,6 +28,10 @@ pub enum State {
         clip_index: usize,
         relative_location: u64
     },
+    CreatingJunction {
+        source_channel_index: usize,
+        source_channel_location: u64
+    },
     Hovering {
         potential_action: Action
     },
@@ -43,6 +47,7 @@ impl State {
     pub fn cursor_icon(&self) -> CursorIcon {
         match self {
             State::GrabbingClip { .. } => CursorIcon::Grabbing,
+            State::CreatingJunction { .. } => CursorIcon::Hand,
             State::Hovering { potential_action } => {
                 match potential_action {
                     Action::Channel { channel_action: action, .. } => {
