@@ -3,7 +3,7 @@ use wgpu::{include_wgsl, Device, RenderPipeline, Buffer, RenderPass, TextureForm
 
 use crate::ui::{Depth, TransformInstance, Transform};
 use crate::ui::mouse::MousePosition;
-use crate::ui::render::Vertex;
+use crate::ui::primitive::Vertex;
 use crate::util::color_to_f32_array;
 
 

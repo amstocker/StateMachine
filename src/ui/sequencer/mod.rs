@@ -6,8 +6,8 @@ use winit::{event::{WindowEvent, MouseButton, ElementState}, window::Window};
 
 use crate::sequencer::*;
 use crate::ui::sequencer::state::*;
-use crate::ui::{Depth, Transform};
-use crate::ui::render::{RendererController, Primitive, Quad, Text, Line, CLEAR_COLOR};
+use crate::ui::Depth;
+use crate::ui::primitive::{RendererController, Primitive, Quad, Text, Line, CLEAR_COLOR};
 use crate::ui::mouse::MousePosition;
 
 
@@ -162,7 +162,6 @@ impl SequencerInterface {
                             (MouseButton::Left, ElementState::Pressed) => {
                                 self.handle_create_junction(
                                     channel_index,
-                                    channel_location,
                                     Junction {
                                         enabled: true,
                                         location: channel_location,
@@ -224,7 +223,7 @@ impl SequencerInterface {
         ).unwrap();
     }
 
-    pub fn handle_create_junction(&mut self, channel_index: usize, channel_location: u64, model: Junction) -> State {
+    pub fn handle_create_junction(&mut self, channel_index: usize, model: Junction) -> State {
         let channel = &mut self.channels[channel_index];
         channel.junctions[channel.active_junctions] = JunctionInterface {
             model

@@ -1,6 +1,6 @@
-use glyph_brush::GlyphCruncher;
+use wgpu::*;
 use wgpu::util::StagingBelt;
-use wgpu::{Device, TextureFormat, CommandEncoder, TextureView, Color, DepthStencilState};
+use wgpu_glyph::{GlyphBrush, GlyphBrushBuilder};
 use wgpu_glyph::{ab_glyph::FontArc, Section};
 use winit::dpi::PhysicalSize;
 
@@ -10,7 +10,7 @@ use crate::util::color_to_f32_array;
 
 
 pub struct Text {
-    pub text: String,
+    pub label: String,
     pub position: (f32, f32),
     pub scale: f32,
     pub color: Color,
@@ -19,23 +19,27 @@ pub struct Text {
 
 impl Text {
     fn into_section_with_transform(&self, bounds: (f32, f32), transform: Transform) -> Section {
+        let x = self.position.0 + transform.translate.0;
+        let y = self.position.1 + transform.translate.1;
         Section {
             screen_position: (
-                self.position.0 * bounds.0,
-                (1.0 - self.position.1) * bounds.1
+                x * bounds.0,
+                (1.0 - y) * bounds.1
             ),
             bounds,
-            text: vec![wgpu_glyph::Text::new(&self.text)
-                .with_color(color_to_f32_array(self.color))
-                .with_scale(self.scale)
-                .with_z(self.depth.z())],
+            text: vec![
+                wgpu_glyph::Text::new(&self.label)
+                    .with_color(color_to_f32_array(self.color))
+                    .with_scale(self.scale)
+                    .with_z(self.depth.z())
+            ],
             ..Section::default()
         }
     }
 }
 
 pub struct TextHandler {
-    glyph_brush: wgpu_glyph::GlyphBrush<DepthStencilState>,
+    glyph_brush: GlyphBrush<DepthStencilState>,
     bounds: (f32, f32),
     font_character_ratio: f32
 }
@@ -49,7 +53,7 @@ impl TextHandler {
     ) -> Self {
         let font: FontArc = JETBRAINS_MONO.into();
         let glyph_brush =
-            wgpu_glyph::GlyphBrushBuilder::using_font(font.clone())
+            GlyphBrushBuilder::using_font(font.clone())
                 .depth_stencil_state(depth_stencil_state)
                 .build(device, format);
 
@@ -59,12 +63,11 @@ impl TextHandler {
             font_character_ratio: measure_monospace_font_character_ratio(font)
         };
         handler.resize(size);
-
         handler
     }
 
-    pub fn measure_str(&self, length: usize, scale: f32) -> f32 {
-        length as f32 * scale * self.font_character_ratio
+    pub fn text_length_to_width(&self, length: usize, scale: f32) -> f32 {
+        (length as f32) * self.font_character_ratio * scale
     }
 
     pub fn resize(&mut self, size: PhysicalSize<u32>) {
@@ -91,10 +94,10 @@ impl TextHandler {
                 staging_belt,
                 encoder,
                 view,
-                wgpu::RenderPassDepthStencilAttachment {
+                RenderPassDepthStencilAttachment {
                     view: &depth_view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
+                    depth_ops: Some(Operations {
+                        load: LoadOp::Load,
                         store: true,
                     }),
                     stencil_ops: None,
@@ -104,22 +107,4 @@ impl TextHandler {
             )
             .expect("Draw queued");
     }
-}
-
-
-pub fn measure_monospace_font_character_ratio(font: FontArc) -> f32 {
-    let mut measure_brush: glyph_brush::GlyphBrush<()> =
-        glyph_brush::GlyphBrushBuilder::using_font(font)
-            .build();
-
-    let section = Section {
-        screen_position: (0.0, 0.0),
-        bounds: (1.0, 1.0),
-        text: vec![wgpu_glyph::Text::new("X").with_scale(1.0)],
-        ..Section::default()
-    };
-
-    let rect = measure_brush.glyph_bounds(section).unwrap();
-
-    rect.max.x / rect.max.y
 }

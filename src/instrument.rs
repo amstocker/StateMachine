@@ -4,7 +4,7 @@ use winit::window::{Window, CursorIcon};
 use winit::event::{WindowEvent, MouseButton, ElementState};
 
 use crate::ui::layout::{ThreePanelLayout, ThreePanelLayoutTransform};
-use crate::ui::render::{RendererController, Primitive, Line};
+use crate::ui::primitive::{RendererController, Primitive, Line};
 use crate::ui::sequencer::{SequencerInterface};
 use crate::ui::mouse::MousePosition;
 use crate::ui::{Application, Transform, Depth};

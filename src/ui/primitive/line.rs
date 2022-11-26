@@ -159,17 +159,3 @@ impl LineHandler {
         self.instance_buffer_index = 0;
     }
 }
-
-
-use crate::ui::render::Vertex;
-const GRID_BACKGROUND_BUFFER_LENGTH: usize = 2 * (NUM_CHANNELS + 1);
-
-fn create_grid_vertices() -> [Vertex; GRID_BACKGROUND_BUFFER_LENGTH] {
-    let mut vertices = [Vertex::zeroed(); GRID_BACKGROUND_BUFFER_LENGTH];
-    for i in 0..=NUM_CHANNELS {
-        let y = -1.0 + 2.0 * (i as f32 / NUM_CHANNELS as f32);
-        vertices[2 * i] = Vertex { position: [-1.0, y] };
-        vertices[2 * i + 1] = Vertex { position: [1.0, y] };
-    }
-    vertices
-}

@@ -1,11 +1,11 @@
+mod line;
 mod quad;
 mod text;
-mod line;
 mod vertex;
 
+pub use line::*;
 pub use quad::*;
 pub use text::*;
-pub use line::*;
 pub use vertex::*;
 
 use wgpu::*;
@@ -54,6 +54,14 @@ pub struct RendererController<'r> {
 
 impl<'r> RendererController<'r> {
     pub fn draw(&mut self, primitive: Primitive) {
+        self.draw_with_transform(primitive, self.transform);
+    }
+
+    pub fn draw_absolute(&mut self, primitive: Primitive) {
+        self.draw_with_transform(primitive, Transform::identity());
+    }
+
+    pub fn draw_with_transform(&mut self, primitive: Primitive, transform: Transform) {
         let Renderer {
             queue,
             quad_handler,
@@ -63,16 +71,20 @@ impl<'r> RendererController<'r> {
         } = self.renderer;
         match primitive {
             Primitive::Quad(quad) => {
-                quad_handler.write(quad, self.transform, queue)
+                quad_handler.write(quad, transform, queue)
             },
             Primitive::Text(ref text) => {
-                text_handler.write(text, self.transform);
+                text_handler.write(text, transform);
             },
             Primitive::Line(line) => {
-                line_handler.write(line, self.transform, queue);
+                line_handler.write(line, transform, queue);
             },
             Primitive::Mesh => todo!(),
         }
+    }
+
+    pub fn text_length_to_width(&self, length: usize, scale: f32) -> f32 {
+        self.renderer.text_handler.text_length_to_width(length, scale)
     }
 
     pub fn set_transform(&mut self, transform: Transform) {
@@ -80,7 +92,7 @@ impl<'r> RendererController<'r> {
     }
 
     pub fn clear_transform(&mut self) {
-        self.transform = Transform::default();
+        self.transform = Transform::identity();
     }
 }
 
@@ -164,7 +176,7 @@ impl Renderer {
     pub fn controller(&mut self) -> RendererController {
         RendererController {
             renderer: self,
-            transform: Transform::default()
+            transform: Transform::identity()
         }
     }
 

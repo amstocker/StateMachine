@@ -1,5 +1,6 @@
 pub mod fonts;
-pub mod render;
+pub mod primitive;
+pub mod component;
 pub mod sequencer;
 pub mod mouse;
 pub mod layout;
@@ -41,16 +42,14 @@ pub struct Transform {
     pub scale: (f32, f32)
 }
 
-impl Default for Transform {
-    fn default() -> Self {
-        Self {
+impl Transform {
+    pub fn identity() -> Transform {
+        Transform {
             translate: (0.0, 0.0),
             scale: (1.0, 1.0)
         }
     }
-}
 
-impl Transform {
     pub fn inverse(&self) -> Transform {
         Transform {
             translate: (
@@ -86,7 +85,7 @@ pub struct TransformInstance {
 
 impl Default for TransformInstance {
     fn default() -> Self {
-        Transform::default().into()
+        Transform::identity().into()
     }
 }
 

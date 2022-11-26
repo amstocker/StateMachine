@@ -5,7 +5,7 @@ use winit::{
     window::WindowBuilder,
 };
 
-use crate::ui::render::{Renderer, RendererController};
+use crate::ui::primitive::{Renderer, RendererController};
 
 
 pub trait ApplicationConfig {
