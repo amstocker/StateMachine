@@ -1,11 +1,12 @@
+use glyph_brush::GlyphCruncher;
 use wgpu::util::StagingBelt;
 use wgpu::{Device, TextureFormat, CommandEncoder, TextureView, Color, DepthStencilState};
-use wgpu_glyph::{GlyphBrushBuilder, ab_glyph::FontArc, GlyphBrush, Section};
+use wgpu_glyph::{ab_glyph::FontArc, Section};
 use winit::dpi::PhysicalSize;
 
 use crate::ui::{Depth, Transform};
 use crate::ui::fonts::*;
-use crate::ui::util::color_to_f32_array;
+use crate::util::color_to_f32_array;
 
 
 pub struct Text {
@@ -34,8 +35,9 @@ impl Text {
 }
 
 pub struct TextHandler {
-    glyph_brush: GlyphBrush<DepthStencilState>,
-    bounds: (f32, f32)
+    glyph_brush: wgpu_glyph::GlyphBrush<DepthStencilState>,
+    bounds: (f32, f32),
+    font_character_ratio: f32
 }
 
 impl TextHandler {
@@ -46,17 +48,23 @@ impl TextHandler {
         size: PhysicalSize<u32>
     ) -> Self {
         let font: FontArc = JETBRAINS_MONO.into();
-        let glyph_brush = GlyphBrushBuilder::using_font(font.clone())
-            .depth_stencil_state(depth_stencil_state)
-            .build(device, format);
+        let glyph_brush =
+            wgpu_glyph::GlyphBrushBuilder::using_font(font.clone())
+                .depth_stencil_state(depth_stencil_state)
+                .build(device, format);
 
-        let mut drawer = Self {
+        let mut handler = Self {
             glyph_brush,
-            bounds: (0.0, 0.0)
+            bounds: (0.0, 0.0),
+            font_character_ratio: measure_monospace_font_character_ratio(font)
         };
-        drawer.resize(size);
+        handler.resize(size);
 
-        drawer
+        handler
+    }
+
+    pub fn measure_str(&self, length: usize, scale: f32) -> f32 {
+        length as f32 * scale * self.font_character_ratio
     }
 
     pub fn resize(&mut self, size: PhysicalSize<u32>) {
@@ -96,4 +104,22 @@ impl TextHandler {
             )
             .expect("Draw queued");
     }
+}
+
+
+pub fn measure_monospace_font_character_ratio(font: FontArc) -> f32 {
+    let mut measure_brush: glyph_brush::GlyphBrush<()> =
+        glyph_brush::GlyphBrushBuilder::using_font(font)
+            .build();
+
+    let section = Section {
+        screen_position: (0.0, 0.0),
+        bounds: (1.0, 1.0),
+        text: vec![wgpu_glyph::Text::new("X").with_scale(1.0)],
+        ..Section::default()
+    };
+
+    let rect = measure_brush.glyph_bounds(section).unwrap();
+
+    rect.max.x / rect.max.y
 }

@@ -3,7 +3,6 @@ pub mod render;
 pub mod sequencer;
 pub mod mouse;
 pub mod layout;
-pub mod util;
 
 mod application;
 pub use application::*;

@@ -3,6 +3,7 @@ mod sequencer;
 mod ui;
 mod config;
 mod instrument;
+mod util;
 
 use crate::config::InstrumentConfig;
 use crate::instrument::Instrument;

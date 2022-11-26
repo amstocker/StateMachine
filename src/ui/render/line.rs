@@ -4,7 +4,7 @@ use wgpu::{TextureFormat, Device, include_wgsl, Buffer, RenderPipeline, RenderPa
 use crate::sequencer::NUM_CHANNELS;
 
 use crate::ui::{Depth, TransformInstance, Transform};
-use crate::ui::util::color_to_f32_array;
+use crate::util::color_to_f32_array;
 
 
 const INSTANCE_BUFFER_SIZE: usize = 128;

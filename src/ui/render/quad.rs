@@ -4,7 +4,7 @@ use wgpu::{include_wgsl, Device, RenderPipeline, Buffer, RenderPass, TextureForm
 use crate::ui::{Depth, TransformInstance, Transform};
 use crate::ui::mouse::MousePosition;
 use crate::ui::render::Vertex;
-use crate::ui::util::color_to_f32_array;
+use crate::util::color_to_f32_array;
 
 
 pub const INSTANCE_BUFFER_SIZE: usize = 128;
