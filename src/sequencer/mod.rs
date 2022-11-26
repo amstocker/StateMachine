@@ -1,4 +1,5 @@
 mod channel;
+mod control_loop;
 mod event;
 
 use rtrb::{Consumer, Producer, RingBuffer};

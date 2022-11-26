@@ -1,7 +1,9 @@
 use wgpu::Color;
 
-use crate::ui::primitive::RendererController;
+use crate::ui::{primitive::RendererController, Depth};
 
+
+const TOOLTIP_DEPTH: Depth = Depth::Modal;
 
 pub enum RelativePosition {
     Above,
@@ -12,13 +14,12 @@ pub enum RelativePosition {
 
 pub struct Tooltip {
     base_position: (f32, f32),
-    position: RelativePosition,
-    color: Color,
+    relative_position: RelativePosition,
+    background_color: Color,
     label: String,
     label_scale: f32,
     label_color: Color,
-    label_padding: f32,
-    // depth: Depth
+    label_padding: f32
 }
 
 impl Tooltip {
