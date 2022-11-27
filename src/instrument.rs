@@ -40,7 +40,7 @@ impl Application for Instrument {
 
         let mut sequencer_interface = SequencerInterface::init(sequencer_controller);
 
-        let source_index: usize = 1;
+        let source_index: usize = 3;
         let metadata = sound_bank_controller.get(source_index).unwrap();
         sequencer_interface.add_clip(1, Clip {
             enabled: true,
@@ -51,24 +51,35 @@ impl Application for Instrument {
             source_shift: 0,
         });
 
-        let source_index: usize = 2;
+        let source_index: usize = 0;
         let metadata = sound_bank_controller.get(source_index).unwrap();
         sequencer_interface.add_clip(2, Clip {
             enabled: true,
             source_index,
-            channel_location_start: 10_000,
-            channel_location_end: 10_000 + metadata.length as u64,
+            channel_location_start: 0,
+            channel_location_end: metadata.length as u64,
             source_scale: 1.0,
             source_shift: 0,
         });
 
-        let source_index: usize = 0;
+        let source_index: usize = 2;
         let metadata = sound_bank_controller.get(source_index).unwrap();
         sequencer_interface.add_clip(3, Clip {
             enabled: true,
             source_index,
-            channel_location_start: 30_000,
-            channel_location_end: 30_000 + metadata.length as u64,
+            channel_location_start: 0,
+            channel_location_end: metadata.length as u64,
+            source_scale: 1.0,
+            source_shift: 0,
+        });
+
+        let source_index: usize = 1;
+        let metadata = sound_bank_controller.get(source_index).unwrap();
+        sequencer_interface.add_clip(0, Clip {
+            enabled: true,
+            source_index,
+            channel_location_start: 0,
+            channel_location_end: metadata.length as u64,
             source_scale: 1.0,
             source_shift: 0,
         });

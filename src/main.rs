@@ -17,7 +17,8 @@ fn main() {
     let files = [
         "assets/samples/kick.wav",
         "assets/samples/snare.wav",
-        "assets/samples/hihat.wav"
+        "assets/samples/hihat.wav",
+        "assets/samples/flute.wav"
     ];
     config.sounds = files.map(|path| Sound::from_wav_file(path, &config.output)).into();
 
