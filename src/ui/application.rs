@@ -64,7 +64,7 @@ pub trait Application: 'static + Sized {
                             app.resize(**new_inner_size);
                         },
                         _ => {},
-                    };
+                    }
                     app.handle_window_event(event, &window);
                 },
                 Event::RedrawRequested(window_id) if window_id == window.id() => {

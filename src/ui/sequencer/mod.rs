@@ -12,8 +12,6 @@ use crate::ui::mouse::MousePosition;
 use crate::ui::application::CLEAR_COLOR;
 
 
-pub const MARKER_LINE_WIDTH: f32 = 0.002;
-
 #[derive(Debug, Default)]
 pub struct ClipInterface {
     model: Clip,
@@ -125,30 +123,26 @@ impl SequencerInterface {
                     (MouseButton::Left, ElementState::Released) => {
                         let index = mouse_position_to_channel_index(self.mouse_position);
                         let location = mouse_position_to_channel_location(self.mouse_position, self.channel_length);
-                        if index == source_channel_index {
-                            self.handle_create_junction(
-                                source_channel_index,
+                        self.handle_create_junction(
+                            source_channel_index,
+                            if index == source_channel_index {
                                 Junction {
                                     enabled: true,
                                     location,
                                     junction_type: JunctionType::Reflect
                                 }
-                            );
-                        } else {
-                            self.handle_create_junction(
-                                source_channel_index,
+                            } else {
                                 Junction {
                                     enabled: true,
                                     location: source_channel_location,
                                     junction_type: JunctionType::Jump {
                                         destination_channel_index: index,
                                         destination_location: location,
-                                        // split: false,
                                         split: true
                                     }
                                 }
-                            );
-                        }
+                            }
+                        );
                         State::default()
                     },
                     _ => self.state
@@ -170,11 +164,7 @@ impl SequencerInterface {
             State::Hovering { .. } => State::Hovering {
                     potential_action: self.get_potential_action()
                 },
-            State::CreatingJunction {
-                source_channel_index,
-                source_channel_location,
-                ..
-            } => {
+            State::CreatingJunction { .. } => {
                 self.state
             },
         }
@@ -429,7 +419,7 @@ fn playhead_to_primitive(channel_index: usize, channel_length: u64, playhead: Pl
     let y = 1.0 - h - (channel_index as f32 / NUM_CHANNELS as f32);
     Primitive::Quad(Quad {
         position: (x, y),
-        size: (MARKER_LINE_WIDTH, h),
+        size: (style::MARKER_LINE_WIDTH, h),
         color: Color::RED,
         depth: Depth::Front
     })
@@ -445,7 +435,7 @@ fn reflect_junction_to_primitive(
     let y = h * (NUM_CHANNELS as f32 - channel_index as f32);
     Primitive::Quad(Quad {
         position: (x, y - h),
-        size: (MARKER_LINE_WIDTH, h),
+        size: (style::MARKER_LINE_WIDTH, h),
         color: Color::GREEN,
         depth: Depth::Front,
     })
@@ -466,13 +456,13 @@ fn jump_junction_to_primitives(
     (
         Primitive::Quad(Quad {
             position: (x, y - h),
-            size: (MARKER_LINE_WIDTH, h),
+            size: (style::MARKER_LINE_WIDTH, h),
             color: Color::BLUE,
             depth: Depth::Front,
         }),
         Primitive::Quad(Quad {
             position: (x_dest, y_dest - h),
-            size: (MARKER_LINE_WIDTH, h),
+            size: (style::MARKER_LINE_WIDTH, h),
             color: Color::BLUE,
             depth: Depth::Front,
         })
