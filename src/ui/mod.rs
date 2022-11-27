@@ -36,22 +36,32 @@ impl Depth {
     }
 }
 
+pub trait Transform {
+    fn identity() -> Self;
+    fn inverse(&self) -> Self;
+    fn then(&self, other: Self) -> Self;
+}
+
 #[derive(Debug, Clone, Copy)]
-pub struct Transform {
+pub struct UITransform {
     pub translate: (f32, f32),
     pub scale: (f32, f32)
 }
 
-impl Transform {
-    pub fn identity() -> Transform {
-        Transform {
+pub trait Transformable {
+    fn transform(&self) -> UITransform;
+}
+
+impl Transform for UITransform {
+    fn identity() -> UITransform {
+        UITransform {
             translate: (0.0, 0.0),
             scale: (1.0, 1.0)
         }
     }
 
-    pub fn inverse(&self) -> Transform {
-        Transform {
+    fn inverse(&self) -> UITransform {
+        UITransform {
             translate: (
                 -1.0 * self.translate.0 / self.scale.0,
                 -1.0 * self.translate.1 / self.scale.1
@@ -63,8 +73,8 @@ impl Transform {
         }
     }
 
-    pub fn then(&self, next: Transform) -> Transform {
-        Transform {
+    fn then(&self, next: UITransform) -> UITransform {
+        UITransform {
             translate: (
                 next.scale.0 * self.translate.0 + next.translate.0,
                 next.scale.1 * self.translate.1 + next.translate.1
@@ -85,11 +95,11 @@ pub struct TransformInstance {
 
 impl Default for TransformInstance {
     fn default() -> Self {
-        Transform::identity().into()
+        UITransform::identity().into()
     }
 }
 
-impl Into<TransformInstance> for Transform {
+impl Into<TransformInstance> for UITransform {
     fn into(self) -> TransformInstance {
         TransformInstance {
             transform: [

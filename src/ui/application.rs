@@ -5,7 +5,7 @@ use winit::{
     window::WindowBuilder,
 };
 
-use crate::ui::primitive::{Renderer, RendererController};
+use crate::ui::primitive::{Renderer, Draw};
 
 
 pub const CLEAR_COLOR: wgpu::Color = wgpu::Color {
@@ -28,7 +28,7 @@ pub trait Application: 'static + Sized {
 
     fn update(&mut self);
 
-    fn draw(&self, controller: RendererController);
+    fn draw(&self, controller: Draw);
 
     fn handle_window_event(&mut self, event: &WindowEvent, window: &Window);
 

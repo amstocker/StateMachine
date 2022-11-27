@@ -1,6 +1,6 @@
 use wgpu::Color;
 
-use crate::ui::{primitive::RendererController, Depth, layout::RelativePosition};
+use crate::ui::{primitive::Draw, Depth, layout::RelativePosition};
 
 
 const DEPTH: Depth = Depth::Modal;
@@ -18,7 +18,7 @@ pub struct PopupMenu {
 }
 
 impl PopupMenu {
-    pub fn draw(&self, renderer_controller: RendererController) {
+    pub fn draw(&self, renderer_controller: Draw) {
         let label_width = renderer_controller.text_length_to_width(
             self.label.len(),
             self.label_scale

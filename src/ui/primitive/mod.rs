@@ -13,7 +13,9 @@ use wgpu::util::StagingBelt;
 use winit::{window::Window, dpi::PhysicalSize};
 use pollster::block_on;
 
-use crate::ui::Transform;
+use crate::ui::{Transform, UITransform};
+
+use super::Transformable;
 
 
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
@@ -27,7 +29,7 @@ pub enum Primitive {
 
 
 pub trait Drawable {
-    fn draw(&self, renderer_controller: RendererController);
+    fn draw(&self, draw: &mut Draw);
 }
 
 pub struct Renderer {
@@ -44,21 +46,28 @@ pub struct Renderer {
     line_handler: LineHandler
 }
 
-pub struct RendererController<'r> {
+pub struct Draw<'r> {
     renderer: &'r mut Renderer,
-    transform: Transform
+    global_transform: UITransform
 }
 
-impl<'r> RendererController<'r> {
-    pub fn draw(&mut self, primitive: Primitive) {
-        self.draw_with_transform(primitive, self.transform);
+impl<'r> Draw<'r> {
+    pub fn primitive(&mut self, primitive: Primitive) {
+        self.primitive_with_transform(primitive, self.global_transform);
     }
 
-    pub fn draw_absolute(&mut self, primitive: Primitive) {
-        self.draw_with_transform(primitive, Transform::identity());
+    pub fn with<T: Transformable + Drawable>(&mut self, thing: &T) {
+        let transform = thing.transform();
+        self.push_transform(transform);
+        thing.draw(self);
+        self.push_transform(transform.inverse());
     }
 
-    pub fn draw_with_transform(&mut self, primitive: Primitive, transform: Transform) {
+    pub fn primitive_absolute(&mut self, primitive: Primitive) {
+        self.primitive_with_transform(primitive, UITransform::identity());
+    }
+
+    pub fn primitive_with_transform(&mut self, primitive: Primitive, transform: UITransform) {
         let Renderer {
             queue,
             quad_handler,
@@ -84,16 +93,8 @@ impl<'r> RendererController<'r> {
         self.renderer.text_handler.text_length_to_width(length, scale)
     }
 
-    pub fn set_transform(&mut self, transform: Transform) {
-        self.transform = transform;
-    }
-
-    pub fn push_transform(&mut self, transform: Transform) {
-        self.transform = self.transform.then(transform);
-    }
-
-    pub fn clear_transform(&mut self) {
-        self.transform = Transform::identity();
+    fn push_transform(&mut self, transform: UITransform) {
+        self.global_transform = self.global_transform.then(transform);
     }
 }
 
@@ -173,10 +174,10 @@ impl Renderer {
         }
     }
 
-    pub fn controller(&mut self) -> RendererController {
-        RendererController {
+    pub fn controller(&mut self) -> Draw {
+        Draw {
             renderer: self,
-            transform: Transform::identity()
+            global_transform: UITransform::identity()
         }
     }
 

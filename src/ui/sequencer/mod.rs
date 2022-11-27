@@ -7,9 +7,12 @@ use winit::{event::{WindowEvent, MouseButton, ElementState}, window::Window};
 use crate::sequencer::*;
 use crate::ui::sequencer::state::*;
 use crate::ui::Depth;
-use crate::ui::primitive::{RendererController, Primitive, Quad, Text, Line};
+use crate::ui::primitive::{Draw, Primitive, Quad, Text, Line};
 use crate::ui::mouse::MousePosition;
 use crate::ui::application::CLEAR_COLOR;
+use crate::ui::{Transform, UITransform};
+
+use super::{Transformable, primitive::Drawable};
 
 
 #[derive(Debug, Default)]
@@ -37,7 +40,8 @@ pub struct SequencerInterface {
     summary: SequencerSummary,
     channel_length: u64,
     mouse_position: MousePosition,
-    state: State
+    state: State,
+    transform: UITransform
 }
 
 impl SequencerInterface {
@@ -49,7 +53,12 @@ impl SequencerInterface {
             channel_length: DEFAULT_CHANNEL_LENGTH,
             mouse_position: MousePosition::default(),
             state: State::default(),
+            transform: UITransform::identity()
         }
+    }
+
+    pub fn set_transform(&mut self, transform: UITransform) {
+        self.transform = transform;
     }
 
     fn get_potential_action(&self) -> Action {
@@ -311,13 +320,22 @@ impl SequencerInterface {
         }
     }
 
-    pub fn draw(&self, mut renderer_controller: RendererController) {
+}
+
+impl Transformable for SequencerInterface {
+    fn transform(&self) -> UITransform {
+        self.transform
+    }
+}
+
+impl Drawable for SequencerInterface {
+    fn draw(&self, draw: &mut Draw) {
         for (channel_index, channel) in self.channels.iter().enumerate() {
             let inv = 1.0 / NUM_CHANNELS as f32;
             let y = inv * (NUM_CHANNELS as f32 - channel_index as f32);
             
             for clip in channel.clips.iter().filter(|clip| clip.model.enabled) {
-                renderer_controller.draw(Primitive::Quad(clip.quad));
+                draw.primitive(Primitive::Quad(clip.quad));
             }
             for junction in channel.junctions.iter().filter(|junction| junction.model.enabled) {
                 match junction.model.junction_type {
@@ -336,8 +354,8 @@ impl SequencerInterface {
                             destination_location,
                             self.channel_length
                         );
-                        renderer_controller.draw(source_marker);
-                        renderer_controller.draw(dest_marker);
+                        draw.primitive(source_marker);
+                        draw.primitive(dest_marker);
                     },
                     JunctionType::Reflect => {
                         let marker = reflect_junction_to_primitive(
@@ -345,7 +363,7 @@ impl SequencerInterface {
                             junction.model.location,
                             self.channel_length
                         );
-                        renderer_controller.draw(marker);
+                        draw.primitive(marker);
                     },
                     JunctionType::Stop => todo!()
                 }
@@ -354,7 +372,7 @@ impl SequencerInterface {
             let playhead = self.summary.playheads[channel_index];
             match playhead.state {
                 PlayheadState::Playing => {
-                    renderer_controller.draw(playhead_to_primitive(
+                    draw.primitive(playhead_to_primitive(
                         channel_index,
                         self.channel_length,
                         self.summary.playheads[channel_index]
@@ -363,7 +381,7 @@ impl SequencerInterface {
                 _ => {},
             }
 
-            renderer_controller.draw(Primitive::Line(Line {
+            draw.primitive(Primitive::Line(Line {
                 from: (0.0, y),
                 to: (1.0, y),
                 color: Color::BLACK,
@@ -373,7 +391,7 @@ impl SequencerInterface {
             let dy = inv * style::JUNCTION_LANE_PROPORTION;
             let Color { r, g, b, a } = CLEAR_COLOR;
             let s = 0.9;
-            renderer_controller.draw(Primitive::Quad(Quad {
+            draw.primitive(Primitive::Quad(Quad {
                 position: (0.0, y - dy),
                 size: (1.0, dy),
                 color: Color { r: s * r, g: s * g, b: s * b, a },

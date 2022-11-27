@@ -3,7 +3,7 @@ use wgpu::{TextureFormat, Device, include_wgsl, Buffer, RenderPipeline, RenderPa
 
 use crate::sequencer::NUM_CHANNELS;
 
-use crate::ui::{Depth, TransformInstance, Transform};
+use crate::ui::{Depth, TransformInstance, UITransform};
 use crate::util::color_to_f32_array;
 
 
@@ -17,7 +17,7 @@ pub struct Line {
 }
 
 impl Line {
-    pub fn instance_with_transform(&self, transform: Transform) -> LineInstance {
+    pub fn instance_with_transform(&self, transform: UITransform) -> LineInstance {
         let z = self.depth.z();
         LineInstance {
             from: [self.from.0, self.from.1, z],
@@ -139,7 +139,7 @@ impl LineHandler {
         }
     }
 
-    pub fn write(&mut self, line: Line, transform: Transform, queue: &Queue) {
+    pub fn write(&mut self, line: Line, transform: UITransform, queue: &Queue) {
         let instance: LineInstance = line.instance_with_transform(transform);
         queue.write_buffer(
             &self.instance_buffer,

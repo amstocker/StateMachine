@@ -2,7 +2,7 @@ use bytemuck::{Pod, Zeroable, cast_slice};
 use wgpu::{Device, BindGroupLayoutEntry, BindGroupEntry, Buffer, Queue};
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 
-use crate::ui::Transform;
+use crate::ui::UITransform;
 
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -19,7 +19,7 @@ impl MousePosition {
         }
     }
 
-    pub fn transform(&self, transform: Transform) -> MousePosition {
+    pub fn transform(&self, transform: UITransform) -> MousePosition {
         MousePosition { 
             x: transform.scale.0 * self.x + transform.translate.0,
             y: transform.scale.1 * self.y + transform.translate.1

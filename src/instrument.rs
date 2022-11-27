@@ -4,10 +4,10 @@ use winit::window::{Window, CursorIcon};
 use winit::event::{WindowEvent, MouseButton, ElementState};
 
 use crate::ui::layout::{ThreePanelLayout, ThreePanelLayoutTransform};
-use crate::ui::primitive::{RendererController, Primitive, Line};
+use crate::ui::primitive::{Draw, Primitive, Line};
 use crate::ui::sequencer::{SequencerInterface};
 use crate::ui::mouse::MousePosition;
-use crate::ui::{Application, Transform, Depth};
+use crate::ui::{Application, UITransform, Depth, Transform};
 use crate::config::InstrumentConfig;
 use crate::sequencer::{SequencerController, Sequencer, SequencerEvent, Clip};
 use crate::sound::{Output, SoundBankController, Float, SoundBank};
@@ -16,7 +16,7 @@ use crate::sound::{Output, SoundBankController, Float, SoundBank};
 pub struct Instrument {
     global_layout: ThreePanelLayout,
     sequencer_interface: SequencerInterface,
-    sequencer_transform: Transform,
+    sequencer_transform: UITransform,
     sound_bank_controller: SoundBankController<Float>,
     _output: Output,
     mouse_position: MousePosition,
@@ -93,6 +93,7 @@ impl Application for Instrument {
             main_panel_transform: sequencer_transform,
             ..
         } = global_layout.transform();
+        sequencer_interface.set_transform(sequencer_transform);
 
         Self {
             global_layout,
@@ -118,27 +119,26 @@ impl Application for Instrument {
     }
 
     fn resize(&mut self, size: PhysicalSize<u32>) {
-
+        self.sequencer_interface.set_transform(self.sequencer_transform);
     }
 
     fn update(&mut self) {
         self.sequencer_interface.update();
     }
 
-    fn draw(&self, mut renderer_controller: RendererController) {
-        renderer_controller.draw(Primitive::Line(Line {
+    fn draw(&self, mut draw: Draw) {
+        draw.primitive(Primitive::Line(Line {
             from: (0.0, self.global_layout.vertical_divide),
             to: (1.0, self.global_layout.vertical_divide),
             color: Color::BLACK,
             depth: Depth::Mid,
         }));
-        renderer_controller.draw(Primitive::Line(Line {
+        draw.primitive(Primitive::Line(Line {
             from: (self.global_layout.horizontal_divide, self.global_layout.vertical_divide),
             to: (self.global_layout.horizontal_divide, 1.0),
             color: Color::BLACK,
             depth: Depth::Mid,
         }));
-        renderer_controller.set_transform(self.sequencer_transform);
-        self.sequencer_interface.draw(renderer_controller);
+        draw.with(&self.sequencer_interface);
     }
 }
