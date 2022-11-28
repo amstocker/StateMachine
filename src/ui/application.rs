@@ -6,6 +6,7 @@ use winit::{
 };
 
 use crate::ui::primitive::{Renderer, Draw};
+use crate::ui::mouse::{Mouse, MousePosition};
 
 
 pub const CLEAR_COLOR: wgpu::Color = wgpu::Color {
@@ -24,13 +25,13 @@ pub trait Application: 'static + Sized {
 
     fn init(config: Self::Config) -> Self;
 
-    fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>);
+    fn handle_resize(&mut self, size: winit::dpi::PhysicalSize<u32>);
+    
+    fn handle_window_event(&mut self, event: &WindowEvent, window: &Window);
 
     fn update(&mut self);
 
     fn draw(&self, controller: Draw);
-
-    fn handle_window_event(&mut self, event: &WindowEvent, window: &Window);
 
     fn run(config: Self::Config) {
         env_logger::init();
@@ -57,13 +58,13 @@ pub trait Application: 'static + Sized {
                         },
                         WindowEvent::Resized(physical_size) => {
                             renderer.resize(*physical_size);
-                            app.resize(*physical_size);
+                            app.handle_resize(*physical_size);
                         },
                         WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
                             renderer.resize(**new_inner_size);
-                            app.resize(**new_inner_size);
+                            app.handle_resize(**new_inner_size);
                         },
-                        _ => {},
+                        _ => {}
                     }
                     app.handle_window_event(event, &window);
                 },

@@ -5,6 +5,12 @@ use winit::dpi::{PhysicalPosition, PhysicalSize};
 use crate::ui::Transform;
 
 
+#[derive(Debug, Default)]
+pub struct Mouse {
+    pub position: MousePosition,
+    pub position_delta: (f32, f32)
+}
+
 #[derive(Debug, Default, Clone, Copy)]
 pub struct MousePosition {
     pub x: f32,
@@ -12,6 +18,13 @@ pub struct MousePosition {
 }
 
 impl MousePosition {
+    pub fn delta(&self, last: MousePosition) -> (f32, f32) {
+        (
+            self.x - last.x,
+            self.y - last.y
+        )
+    }
+
     pub fn from_physical(position: &PhysicalPosition<f64>, size: PhysicalSize<u32>) -> MousePosition {
         MousePosition {
             x: position.x as f32 / size.width as f32,

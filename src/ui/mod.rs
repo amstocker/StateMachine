@@ -1,7 +1,6 @@
 pub mod fonts;
 pub mod primitive;
 pub mod component;
-pub mod sequencer;
 pub mod mouse;
 pub mod layout;
 

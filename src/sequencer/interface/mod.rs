@@ -4,15 +4,14 @@ mod state;
 use wgpu::Color;
 use winit::{event::{WindowEvent, MouseButton, ElementState}, window::Window};
 
+use state::*;
 use crate::sequencer::*;
-use crate::ui::sequencer::state::*;
 use crate::ui::Depth;
 use crate::ui::primitive::{Draw, Primitive, Quad, Text, Line};
 use crate::ui::mouse::MousePosition;
-use crate::ui::application::CLEAR_COLOR;
-use crate::ui::{Transform};
-
-use super::{Transformable, primitive::Drawable};
+use crate::ui::CLEAR_COLOR;
+use crate::ui::{Transform, Transformable};
+use crate::ui::primitive::Drawable;
 
 
 #[derive(Debug, Default)]

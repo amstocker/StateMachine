@@ -37,7 +37,7 @@ pub struct Renderer {
     device: Device,
     queue: Queue,
     config: SurfaceConfiguration,
-    size: PhysicalSize<u32>,
+    pub size: PhysicalSize<u32>,
     clear_color: Color,
     depth_buffer: TextureView,
     staging_belt: StagingBelt,

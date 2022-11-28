@@ -33,7 +33,7 @@ impl<S> SoundBankController<S> where S: OutputSample {
     pub fn get(&self, index: usize) -> Option<&SoundMetadata> {
         let slot = self.metadata.get(index)?;
         if let Some(sound_metadata) = slot {
-            Some(&sound_metadata)
+            Some(sound_metadata)
         } else {
             None
         }

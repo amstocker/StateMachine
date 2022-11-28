@@ -5,11 +5,11 @@ use winit::event::{WindowEvent, MouseButton, ElementState};
 
 use crate::ui::layout::{ThreePanelLayout, ThreePanelLayoutTransform};
 use crate::ui::primitive::{Draw, Primitive, Line};
-use crate::ui::sequencer::{SequencerInterface};
 use crate::ui::mouse::MousePosition;
 use crate::ui::{Application, Transform, Depth};
 use crate::config::InstrumentConfig;
 use crate::sequencer::{SequencerController, Sequencer, SequencerEvent, Clip};
+use crate::sequencer::interface::{SequencerInterface};
 use crate::sound::{Output, SoundBankController, Float, SoundBank};
 
 
@@ -118,7 +118,7 @@ impl Application for Instrument {
         self.sequencer_interface.handle_window_event(event, window);
     }
 
-    fn resize(&mut self, size: PhysicalSize<u32>) {
+    fn handle_resize(&mut self, size: PhysicalSize<u32>) {
         self.sequencer_interface.set_transform(self.sequencer_transform);
     }
 
