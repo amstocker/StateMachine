@@ -4,7 +4,7 @@ use winit::window::{Window, CursorIcon};
 use winit::event::{WindowEvent, MouseButton, ElementState};
 
 use crate::ui::layout::{ThreePanelLayout, ThreePanelLayoutTransform};
-use crate::ui::primitive::{Draw, Line, Quad};
+use crate::ui::primitive::{Draw, Line, Quad, Text};
 use crate::ui::mouse::MousePosition;
 use crate::ui::{Application, Transform, Depth};
 use crate::config::InstrumentConfig;
@@ -138,6 +138,13 @@ impl Application for Instrument {
             to: (self.global_layout.horizontal_divide, self.global_layout.vertical_divide),
             color: Color::BLACK,
             depth: Depth::Mid,
+        });
+        draw.text(Text {
+            label: "Hello".to_owned(),
+            position: (0.5, 0.5),
+            scale: 30.0,
+            color: Color::BLACK,
+            depth: Depth::Back,
         });
         draw.with(&self.sequencer_interface);
     }

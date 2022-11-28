@@ -395,6 +395,14 @@ impl Drawable for SequencerInterface {
                 depth: Depth::Back,
             });
         }
+
+        draw.text(Text {
+            label: format!("{} frames processed", self.summary.total_frames_processed),
+            position: (0.0, 0.0),
+            scale: 20.0,
+            color: Color::BLACK,
+            depth: Depth::Top,
+        });
     }
 }
 

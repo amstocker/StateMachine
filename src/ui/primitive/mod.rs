@@ -148,6 +148,8 @@ impl Renderer {
         };
         surface.configure(&device, &config);
 
+        let staging_belt = StagingBelt::new(1024);
+
         let depth_buffer = create_depth_buffer(&device, size);
         let depth_stencil_state = DepthStencilState {
             format: DEPTH_FORMAT,
@@ -162,8 +164,6 @@ impl Renderer {
             count: MSAA_SAMPLE_COUNT,
             ..MultisampleState::default()
         };
-
-        let staging_belt = StagingBelt::new(1024);
 
         let quad_handler = QuadHandler::init(
             &device,
@@ -234,7 +234,7 @@ impl Renderer {
             label: Some("Render Pass"),
             color_attachments: &[Some(RenderPassColorAttachment {
                 view: &self.multisampled_framebuffer,
-                resolve_target: Some(&view),
+                resolve_target: None,
                 ops: Operations {
                     load: LoadOp::Clear(self.clear_color),
                     store: true,
@@ -262,6 +262,30 @@ impl Renderer {
             self.size.width,
             self.size.height
         );
+
+        // resolve framebuffer to view
+        {
+            let _ =  encoder.begin_render_pass(&RenderPassDescriptor {
+                label: Some("Render Pass"),
+                color_attachments: &[Some(RenderPassColorAttachment {
+                    view: &self.multisampled_framebuffer,
+                    resolve_target: Some(&view),
+                    ops: Operations {
+                        load: LoadOp::Load,
+                        store: false,
+                    },
+                })],
+                depth_stencil_attachment: None
+                // depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
+                //     view: &self.depth_buffer,
+                //     depth_ops: Some(Operations {
+                //         load: LoadOp::Load,
+                //         store: false,
+                //     }),
+                //     stencil_ops: None,
+                // }),
+            });
+        }
     
         self.staging_belt.finish();
         self.queue.submit(std::iter::once(encoder.finish()));

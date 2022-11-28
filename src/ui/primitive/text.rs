@@ -24,7 +24,7 @@ impl Text {
         Section {
             screen_position: (
                 x * bounds.0,
-                (1.0 - y) * bounds.1
+                y * bounds.1
             ),
             bounds,
             text: vec![
