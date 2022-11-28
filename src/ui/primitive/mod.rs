@@ -13,7 +13,7 @@ use wgpu::util::StagingBelt;
 use winit::{window::Window, dpi::PhysicalSize};
 use pollster::block_on;
 
-use crate::ui::{Transform, UITransform};
+use crate::ui::{Transform};
 
 use super::Transformable;
 
@@ -48,7 +48,7 @@ pub struct Renderer {
 
 pub struct Draw<'r> {
     renderer: &'r mut Renderer,
-    global_transform: UITransform
+    global_transform: Transform
 }
 
 impl<'r> Draw<'r> {
@@ -56,18 +56,30 @@ impl<'r> Draw<'r> {
         self.primitive_with_transform(primitive, self.global_transform);
     }
 
+    pub fn line(&mut self, line: Line) {
+        self.primitive(Primitive::Line(line));
+    }
+
+    pub fn quad(&mut self, quad: Quad) {
+        self.primitive(Primitive::Quad(quad));
+    }
+
+    pub fn text(&mut self, text: Text) {
+        self.primitive(Primitive::Text(text));
+    }
+
     pub fn with<T: Transformable + Drawable>(&mut self, thing: &T) {
-        let transform = thing.transform();
-        self.push_transform(transform);
+        let global_transform_copy = self.global_transform;
+        self.push_transform(thing.transform());
         thing.draw(self);
-        self.push_transform(transform.inverse());
+        self.global_transform = global_transform_copy;
     }
 
     pub fn primitive_absolute(&mut self, primitive: Primitive) {
-        self.primitive_with_transform(primitive, UITransform::identity());
+        self.primitive_with_transform(primitive, Transform::identity());
     }
 
-    pub fn primitive_with_transform(&mut self, primitive: Primitive, transform: UITransform) {
+    pub fn primitive_with_transform(&mut self, primitive: Primitive, transform: Transform) {
         let Renderer {
             queue,
             quad_handler,
@@ -93,7 +105,7 @@ impl<'r> Draw<'r> {
         self.renderer.text_handler.text_length_to_width(length, scale)
     }
 
-    fn push_transform(&mut self, transform: UITransform) {
+    fn push_transform(&mut self, transform: Transform) {
         self.global_transform = self.global_transform.then(transform);
     }
 }
@@ -177,7 +189,7 @@ impl Renderer {
     pub fn controller(&mut self) -> Draw {
         Draw {
             renderer: self,
-            global_transform: UITransform::identity()
+            global_transform: Transform::identity()
         }
     }
 

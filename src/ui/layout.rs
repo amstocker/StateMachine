@@ -1,4 +1,4 @@
-use crate::ui::{Transform, UITransform};
+use crate::ui::{Transform};
 
 
 pub enum RelativePosition {
@@ -10,9 +10,9 @@ pub enum RelativePosition {
 
 #[derive(Debug)]
 pub struct ThreePanelLayoutTransform {
-    pub main_panel_transform: UITransform,
-    pub side_panel_transform: UITransform,
-    pub bottom_panel_transform: UITransform
+    pub main_panel_transform: Transform,
+    pub side_panel_transform: Transform,
+    pub bottom_panel_transform: Transform
 }
 
 pub struct ThreePanelLayout {
@@ -34,18 +34,18 @@ impl ThreePanelLayout {
 
 #[derive(Debug)]
 pub struct HorizontalTransform {
-    left: UITransform,
-    right: UITransform
+    left: Transform,
+    right: Transform
 }
 
 impl HorizontalTransform {
     pub fn new(divide: f32) -> Self {
         Self {
-            left: UITransform {
+            left: Transform {
                 translate: (0.0, 0.0),
                 scale: (divide, 1.0)
             },
-            right: UITransform {
+            right: Transform {
                 translate: (divide, 0.0),
                 scale: (1.0 - divide, 1.0)
             }
@@ -65,18 +65,18 @@ impl Horizontal {
 
 #[derive(Debug)]
 pub struct VerticalTransform {
-    top: UITransform,
-    bottom: UITransform
+    top: Transform,
+    bottom: Transform
 }
 
 impl VerticalTransform {
     pub fn new(divide: f32) -> Self {
         Self {
-            top: UITransform {
+            top: Transform {
                 translate: (0.0, divide),
                 scale: (1.0, 1.0 - divide)
             },
-            bottom: UITransform {
+            bottom: Transform {
                 translate: (0.0, 0.0),
                 scale: (1.0, divide)
             }

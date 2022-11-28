@@ -1,7 +1,7 @@
 use bytemuck::{Pod, Zeroable, cast_slice};
 use wgpu::{include_wgsl, Device, RenderPipeline, Buffer, RenderPass, TextureFormat, Queue, Color, DepthStencilState};
 
-use crate::ui::{Depth, TransformInstance, UITransform};
+use crate::ui::{Depth, TransformInstance, Transform};
 use crate::ui::mouse::MousePosition;
 use crate::ui::primitive::Vertex;
 use crate::util::color_to_f32_array;
@@ -81,7 +81,7 @@ impl Quad {
         position.y < self.position.1 + self.size.1
     }
 
-    fn instance_with_transform(&self, transform: UITransform) -> QuadInstance {
+    fn instance_with_transform(&self, transform: Transform) -> QuadInstance {
         QuadInstance {
             position: [self.position.0, self.position.1, self.depth.z()],
             size: [self.size.0, self.size.1],
@@ -181,7 +181,7 @@ impl QuadHandler {
         }
     }
 
-    pub fn write(&mut self, quad: Quad, transform: UITransform, queue: &Queue) {
+    pub fn write(&mut self, quad: Quad, transform: Transform, queue: &Queue) {
         let instance: QuadInstance = quad.instance_with_transform(transform);
         queue.write_buffer(
             &self.instance_buffer,

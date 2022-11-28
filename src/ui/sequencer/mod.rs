@@ -10,7 +10,7 @@ use crate::ui::Depth;
 use crate::ui::primitive::{Draw, Primitive, Quad, Text, Line};
 use crate::ui::mouse::MousePosition;
 use crate::ui::application::CLEAR_COLOR;
-use crate::ui::{Transform, UITransform};
+use crate::ui::{Transform};
 
 use super::{Transformable, primitive::Drawable};
 
@@ -41,7 +41,7 @@ pub struct SequencerInterface {
     channel_length: u64,
     mouse_position: MousePosition,
     state: State,
-    transform: UITransform
+    transform: Transform
 }
 
 impl SequencerInterface {
@@ -53,11 +53,11 @@ impl SequencerInterface {
             channel_length: DEFAULT_CHANNEL_LENGTH,
             mouse_position: MousePosition::default(),
             state: State::default(),
-            transform: UITransform::identity()
+            transform: Transform::identity()
         }
     }
 
-    pub fn set_transform(&mut self, transform: UITransform) {
+    pub fn set_transform(&mut self, transform: Transform) {
         self.transform = transform;
     }
 
@@ -323,7 +323,7 @@ impl SequencerInterface {
 }
 
 impl Transformable for SequencerInterface {
-    fn transform(&self) -> UITransform {
+    fn transform(&self) -> Transform {
         self.transform
     }
 }
@@ -335,7 +335,7 @@ impl Drawable for SequencerInterface {
             let y = inv * (NUM_CHANNELS as f32 - channel_index as f32);
             
             for clip in channel.clips.iter().filter(|clip| clip.model.enabled) {
-                draw.primitive(Primitive::Quad(clip.quad));
+                draw.quad(clip.quad);
             }
             for junction in channel.junctions.iter().filter(|junction| junction.model.enabled) {
                 match junction.model.junction_type {
@@ -381,22 +381,22 @@ impl Drawable for SequencerInterface {
                 _ => {},
             }
 
-            draw.primitive(Primitive::Line(Line {
+            draw.line(Line {
                 from: (0.0, y),
                 to: (1.0, y),
                 color: Color::BLACK,
                 depth: Depth::Mid,
-            }));
+            });
 
             let dy = inv * style::JUNCTION_LANE_PROPORTION;
             let Color { r, g, b, a } = CLEAR_COLOR;
             let s = 0.9;
-            draw.primitive(Primitive::Quad(Quad {
+            draw.quad(Quad {
                 position: (0.0, y - dy),
                 size: (1.0, dy),
                 color: Color { r: s * r, g: s * g, b: s * b, a },
                 depth: Depth::Back,
-            }));
+            });
         }
     }
 }

@@ -4,7 +4,7 @@ use wgpu_glyph::{GlyphBrush, GlyphBrushBuilder};
 use wgpu_glyph::{ab_glyph::FontArc, Section};
 use winit::dpi::PhysicalSize;
 
-use crate::ui::{Depth, UITransform};
+use crate::ui::{Depth, Transform};
 use crate::ui::fonts::*;
 use crate::util::color_to_f32_array;
 
@@ -18,7 +18,7 @@ pub struct Text {
 }
 
 impl Text {
-    fn into_section_with_transform(&self, bounds: (f32, f32), transform: UITransform) -> Section {
+    fn into_section_with_transform(&self, bounds: (f32, f32), transform: Transform) -> Section {
         let x = self.position.0 + transform.translate.0;
         let y = self.position.1 + transform.translate.1;
         Section {
@@ -74,7 +74,7 @@ impl TextHandler {
         self.bounds = (size.width as f32, size.height as f32);
     }
 
-    pub fn write(&mut self, text: &Text, transform: UITransform) {
+    pub fn write(&mut self, text: &Text, transform: Transform) {
         self.glyph_brush.queue(text.into_section_with_transform(self.bounds, transform));
     }
 

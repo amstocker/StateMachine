@@ -18,7 +18,8 @@ pub enum Depth {
     Front,
     Menu,
     Modal,
-    Top
+    Top,
+    Custom(f32)
 }
 
 impl Depth {
@@ -31,37 +32,32 @@ impl Depth {
             Front => 0.7,
             Menu => 0.8,
             Modal => 0.9,
-            Top => 1.0
+            Top => 1.0,
+            Custom(z) => *z,
         }
     }
 }
 
-pub trait Transform {
-    fn identity() -> Self;
-    fn inverse(&self) -> Self;
-    fn then(&self, other: Self) -> Self;
-}
-
 #[derive(Debug, Clone, Copy)]
-pub struct UITransform {
+pub struct Transform {
     pub translate: (f32, f32),
     pub scale: (f32, f32)
 }
 
 pub trait Transformable {
-    fn transform(&self) -> UITransform;
+    fn transform(&self) -> Transform;
 }
 
-impl Transform for UITransform {
-    fn identity() -> UITransform {
-        UITransform {
+impl Transform {
+    pub fn identity() -> Transform {
+        Transform {
             translate: (0.0, 0.0),
             scale: (1.0, 1.0)
         }
     }
 
-    fn inverse(&self) -> UITransform {
-        UITransform {
+    pub fn inverse(&self) -> Transform {
+        Transform {
             translate: (
                 -1.0 * self.translate.0 / self.scale.0,
                 -1.0 * self.translate.1 / self.scale.1
@@ -73,8 +69,8 @@ impl Transform for UITransform {
         }
     }
 
-    fn then(&self, next: UITransform) -> UITransform {
-        UITransform {
+    pub fn then(&self, next: Transform) -> Transform {
+        Transform {
             translate: (
                 next.scale.0 * self.translate.0 + next.translate.0,
                 next.scale.1 * self.translate.1 + next.translate.1
@@ -95,11 +91,11 @@ pub struct TransformInstance {
 
 impl Default for TransformInstance {
     fn default() -> Self {
-        UITransform::identity().into()
+        Transform::identity().into()
     }
 }
 
-impl Into<TransformInstance> for UITransform {
+impl Into<TransformInstance> for Transform {
     fn into(self) -> TransformInstance {
         TransformInstance {
             transform: [
