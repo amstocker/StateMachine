@@ -1,7 +1,7 @@
 pub mod fonts;
 pub mod primitive;
 pub mod component;
-pub mod mouse;
+pub mod input;
 pub mod layout;
 
 mod application;
@@ -33,6 +33,49 @@ impl Depth {
             Modal => 0.9,
             Top => 1.0,
             Custom(z) => *z,
+        }
+    }
+}
+
+pub trait ApplyTransform {
+    fn apply(&self, transform: Transform) -> Self;
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+pub struct Position (pub f32, pub f32);
+
+impl ApplyTransform for Position {
+    fn apply(&self, transform: Transform) -> Position {
+        Position (
+            transform.translate.0 + transform.scale.0 * self.0,
+            transform.translate.1 + transform.scale.1 * self.1
+        )
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+pub struct Size (pub f32, pub f32);
+
+impl ApplyTransform for Size {
+    fn apply(&self, transform: Transform) -> Size {
+        Size (
+            transform.scale.0 * self.0,
+            transform.scale.1 * self.1
+        )
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+pub struct Rectangle {
+    position: Position,
+    size: Size
+}
+
+impl ApplyTransform for Rectangle {
+    fn apply(&self, transform: Transform) -> Self {
+        Rectangle { 
+            position: self.position.apply(transform),
+            size: self.size.apply(transform)
         }
     }
 }

@@ -8,8 +8,8 @@ use state::*;
 use crate::sequencer::*;
 use crate::ui::Depth;
 use crate::ui::primitive::{Draw, Primitive, Quad, Text, Line};
-use crate::ui::mouse::MousePosition;
-use crate::ui::CLEAR_COLOR;
+use crate::ui::input::MousePosition;
+use crate::config::CLEAR_COLOR;
 use crate::ui::{Transform, Transformable};
 use crate::ui::primitive::Drawable;
 
@@ -396,13 +396,13 @@ impl Drawable for SequencerInterface {
             });
         }
 
-        draw.text(Text {
+        draw.primitive_absolute(Primitive::Text(Text {
             label: format!("{} frames processed", self.summary.total_frames_processed),
             position: (0.0, 0.0),
-            scale: 20.0,
+            scale: 30.0,
             color: Color::BLACK,
             depth: Depth::Top,
-        });
+        }));
     }
 }
 

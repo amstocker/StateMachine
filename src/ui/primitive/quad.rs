@@ -2,7 +2,7 @@ use bytemuck::{Pod, Zeroable, cast_slice};
 use wgpu::{include_wgsl, Device, RenderPipeline, Buffer, RenderPass, TextureFormat, Queue, Color, DepthStencilState, MultisampleState};
 
 use crate::ui::{Depth, TransformInstance, Transform};
-use crate::ui::mouse::MousePosition;
+use crate::ui::input::MousePosition;
 use crate::ui::primitive::Vertex;
 use crate::util::color_to_f32_array;
 

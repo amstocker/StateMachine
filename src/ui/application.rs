@@ -1,3 +1,4 @@
+use wgpu::Color;
 use winit::{
     window::Window,
     event::*,
@@ -5,33 +6,31 @@ use winit::{
     window::WindowBuilder,
 };
 
-use crate::ui::primitive::{Renderer, Draw};
-use crate::ui::mouse::{Mouse, MousePosition};
+use crate::ui::Transformable;
+use crate::ui::Position;
+use crate::ui::primitive::{Renderer, Drawable};
+use crate::ui::input::{Input, InputType, InputHandler};
 
 
-pub const CLEAR_COLOR: wgpu::Color = wgpu::Color {
-    r: 255.0 / 255.0,
-    g: 250.0 / 255.0,
-    b: 235.0 / 255.0,
-    a: 1.0
-};
-
-pub trait ApplicationConfig {
-    fn window_title(&self) -> &str;
+pub struct Style {
+    pub clear_color: Color
 }
 
-pub trait Application: 'static + Sized {
-    type Config: ApplicationConfig;
+pub trait ApplicationConfig<T> where T: Application {
+    fn window_title(&self) -> &str;
+    fn init_state(&self) -> Option<T::State>;
+    fn style(&self) -> Style;
+}
+
+pub trait Application: 'static + Sized + Transformable + Drawable + InputHandler<Self> {
+    type Config: ApplicationConfig<Self>;
+    type State: Default + Clone + Copy;
 
     fn init(config: Self::Config) -> Self;
 
     fn handle_resize(&mut self, size: winit::dpi::PhysicalSize<u32>);
     
-    fn handle_window_event(&mut self, event: &WindowEvent, window: &Window);
-
-    fn update(&mut self);
-
-    fn draw(&self, controller: Draw);
+    fn update(&mut self, state: Self::State) -> Self::State;
 
     fn run(config: Self::Config) {
         env_logger::init();
@@ -42,9 +41,17 @@ pub trait Application: 'static + Sized {
             .with_title(config.window_title())
             .build(&event_loop).unwrap();
    
-        let mut renderer = Renderer::init(&window, CLEAR_COLOR);
+        let mut renderer = Renderer::init(&window, config.style());
         
+        let mut app_state = if let Some(state) = config.init_state() {
+            state
+        } else {
+            Self::State::default()
+        };
+
         let mut app = Self::init(config);
+
+        let mut mouse_position = Position::default();
 
         event_loop.run(move |event, _, control_flow| {
             match event {
@@ -54,6 +61,7 @@ pub trait Application: 'static + Sized {
                 } if window_id == window.id() => {
                     match event {
                         WindowEvent::CloseRequested => {
+                            // app.handle_exit();
                             *control_flow = ControlFlow::Exit;
                         },
                         WindowEvent::Resized(physical_size) => {
@@ -66,17 +74,26 @@ pub trait Application: 'static + Sized {
                         },
                         _ => {}
                     }
-                    app.handle_window_event(event, &window);
+
+                    // need to update mouse position and stuff here
+                    let input = Input {
+                        mouse_position,
+                        input_type: InputType::MouseDown,
+                        event,
+                        window: &window,
+                        state: app_state
+                    };
+                    app_state = input.defer_to(&mut app);
                 },
                 Event::RedrawRequested(window_id) if window_id == window.id() => {
-                    let renderer_controller = renderer.controller();
+                    let mut renderer_controller = renderer.controller();
 
-                    app.draw(renderer_controller);
+                    app.draw(&mut renderer_controller);
                     
                     renderer.render();
                 },
                 Event::MainEventsCleared => {
-                    app.update();
+                    app_state = app.update(app_state);
                     window.request_redraw();
                 },
                 _ => {}

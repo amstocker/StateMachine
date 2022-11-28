@@ -3,15 +3,20 @@ use winit::dpi::PhysicalSize;
 use winit::window::{Window, CursorIcon};
 use winit::event::{WindowEvent, MouseButton, ElementState};
 
-use crate::ui::layout::{ThreePanelLayout, ThreePanelLayoutTransform};
-use crate::ui::primitive::{Draw, Line, Quad, Text};
-use crate::ui::mouse::MousePosition;
-use crate::ui::{Application, Transform, Depth};
+use crate::ui::layout::{ThreePanelLayout, ThreePanelPosition};
+use crate::ui::primitive::{Draw, Line, Quad, Text, Drawable};
+use crate::ui::input::{MousePosition, Input, InputHandler};
+use crate::ui::{Application, Transform, Depth, Position, Transformable};
 use crate::config::InstrumentConfig;
-use crate::sequencer::{SequencerController, Sequencer, SequencerEvent, Clip};
+use crate::sequencer::{SequencerController, Sequencer, SequencerEvent, Clip, self};
 use crate::sequencer::interface::{SequencerInterface};
 use crate::sound::{Output, SoundBankController, Float, SoundBank};
 
+
+#[derive(Debug, Default, Clone, Copy)]
+pub enum InstrumentState {
+    #[default] NotDoingAnything
+}
 
 pub struct Instrument {
     global_layout: ThreePanelLayout,
@@ -24,6 +29,7 @@ pub struct Instrument {
 
 impl Application for Instrument {
     type Config = InstrumentConfig;
+    type State = InstrumentState;
 
     fn init(config: InstrumentConfig) -> Instrument {
         let (
@@ -84,15 +90,9 @@ impl Application for Instrument {
             source_shift: 0,
         });
 
-        let global_layout = ThreePanelLayout {
-            vertical_divide: 0.8,
-            horizontal_divide: 0.2
-        };
-
-        let ThreePanelLayoutTransform {
-            main_panel_transform: sequencer_transform,
-            ..
-        } = global_layout.transform();
+        let global_layout = ThreePanelLayout::new(0.8, 0.3);
+        
+        let sequencer_transform = global_layout.get(ThreePanelPosition::Main);
         sequencer_interface.set_transform(sequencer_transform);
 
         Self {
@@ -105,10 +105,25 @@ impl Application for Instrument {
         }
     }
 
-    fn handle_window_event(&mut self, event: &WindowEvent, window: &Window) {
+    fn handle_resize(&mut self, size: PhysicalSize<u32>) {
+        self.sequencer_interface.set_transform(self.sequencer_transform);
+    }
+
+    fn update(&mut self, state: InstrumentState) -> InstrumentState {
+        self.sequencer_interface.update();
+        state
+    }
+}
+
+impl InputHandler<Instrument> for Instrument {
+    fn handle(&mut self, input: Input<Instrument>) -> InstrumentState {
+        let window = input.window;
+        let event = input.event;
         match event {
             WindowEvent::CursorMoved { position, .. } => {
                 self.mouse_position = MousePosition::from_physical(position, window.inner_size());
+                let position = Position(self.mouse_position.x, self.mouse_position.y);
+
                 self.sequencer_interface.set_mouse_position(
                     self.mouse_position.transform(self.sequencer_transform.inverse())
                 )
@@ -116,36 +131,30 @@ impl Application for Instrument {
             _ => {}
         }
         self.sequencer_interface.handle_window_event(event, window);
+        input.state
     }
+}
 
-    fn handle_resize(&mut self, size: PhysicalSize<u32>) {
-        self.sequencer_interface.set_transform(self.sequencer_transform);
-    }
-
-    fn update(&mut self) {
-        self.sequencer_interface.update();
-    }
-
-    fn draw(&self, mut draw: Draw) {
+impl Drawable for Instrument {
+    fn draw(&self, draw: &mut Draw) {
         draw.line(Line {
-            from: (0.0, self.global_layout.vertical_divide),
-            to: (1.0, self.global_layout.vertical_divide),
+            from: (0.0, self.global_layout.vertical.divide),
+            to: (1.0, self.global_layout.vertical.divide),
             color: Color::BLACK,
             depth: Depth::Mid,
         });
         draw.line(Line {
-            from: (self.global_layout.horizontal_divide, 0.0),
-            to: (self.global_layout.horizontal_divide, self.global_layout.vertical_divide),
+            from: (self.global_layout.horizontal.divide, 0.0),
+            to: (self.global_layout.horizontal.divide, self.global_layout.vertical.divide),
             color: Color::BLACK,
             depth: Depth::Mid,
-        });
-        draw.text(Text {
-            label: "Hello".to_owned(),
-            position: (0.5, 0.5),
-            scale: 30.0,
-            color: Color::BLACK,
-            depth: Depth::Back,
         });
         draw.with(&self.sequencer_interface);
+    }
+}
+
+impl Transformable for Instrument {
+    fn transform(&self) -> Transform {
+        Transform::identity()
     }
 }

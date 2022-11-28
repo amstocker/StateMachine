@@ -13,9 +13,7 @@ use wgpu::util::StagingBelt;
 use winit::{window::Window, dpi::PhysicalSize};
 use pollster::block_on;
 
-use crate::ui::{Transform};
-
-use super::Transformable;
+use crate::ui::{Transform, Transformable, application::Style};
 
 
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
@@ -115,7 +113,7 @@ impl<'r> Draw<'r> {
 }
 
 impl Renderer {
-    pub fn init(window: &Window, clear_color: Color) -> Self {
+    pub fn init(window: &Window, style: Style) -> Self {
         let size = window.inner_size();
 
         let instance = Instance::new(Backends::all());
@@ -191,7 +189,7 @@ impl Renderer {
             queue,
             config,
             size,
-            clear_color,
+            clear_color: style.clear_color,
             depth_buffer,
             multisampled_framebuffer,
             staging_belt,
@@ -263,29 +261,19 @@ impl Renderer {
             self.size.height
         );
 
-        // resolve framebuffer to view
-        {
-            let _ =  encoder.begin_render_pass(&RenderPassDescriptor {
-                label: Some("Render Pass"),
-                color_attachments: &[Some(RenderPassColorAttachment {
-                    view: &self.multisampled_framebuffer,
-                    resolve_target: Some(&view),
-                    ops: Operations {
-                        load: LoadOp::Load,
-                        store: false,
-                    },
-                })],
-                depth_stencil_attachment: None
-                // depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
-                //     view: &self.depth_buffer,
-                //     depth_ops: Some(Operations {
-                //         load: LoadOp::Load,
-                //         store: false,
-                //     }),
-                //     stencil_ops: None,
-                // }),
-            });
-        }
+        let final_pass =  encoder.begin_render_pass(&RenderPassDescriptor {
+            label: Some("Multisample Resolve Render Pass"),
+            color_attachments: &[Some(RenderPassColorAttachment {
+                view: &self.multisampled_framebuffer,
+                resolve_target: Some(&view),
+                ops: Operations {
+                    load: LoadOp::Load,
+                    store: false,
+                },
+            })],
+            depth_stencil_attachment: None
+        });
+        drop(final_pass);
     
         self.staging_belt.finish();
         self.queue.submit(std::iter::once(encoder.finish()));
