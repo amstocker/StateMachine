@@ -9,12 +9,13 @@ use crate::ui::input::{MousePosition, Input, InputHandler};
 use crate::ui::{Application, Transform, Depth, Position, Transformable};
 use crate::config::InstrumentConfig;
 use crate::sequencer::{SequencerController, Sequencer, SequencerEvent, Clip, self};
-use crate::sequencer::interface::{SequencerInterface};
+use crate::sequencer::{interface::{SequencerInterface}};
 use crate::sound::{Output, SoundBankController, Float, SoundBank};
 
 
 #[derive(Debug, Default, Clone, Copy)]
 pub enum InstrumentState {
+    Sequencer(sequencer::interface::State),
     #[default] NotDoingAnything
 }
 
@@ -116,7 +117,7 @@ impl Application for Instrument {
 }
 
 impl InputHandler<Instrument> for Instrument {
-    fn handle(&mut self, input: Input<Instrument>) -> InstrumentState {
+    fn handle(&mut self, input: Input, state: InstrumentState) -> InstrumentState {
         let window = input.window;
         let event = input.event;
         match event {
@@ -131,7 +132,7 @@ impl InputHandler<Instrument> for Instrument {
             _ => {}
         }
         self.sequencer_interface.handle_window_event(event, window);
-        input.state
+        state
     }
 }
 
@@ -150,11 +151,5 @@ impl Drawable for Instrument {
             depth: Depth::Mid,
         });
         draw.with(&self.sequencer_interface);
-    }
-}
-
-impl Transformable for Instrument {
-    fn transform(&self) -> Transform {
-        Transform::identity()
     }
 }

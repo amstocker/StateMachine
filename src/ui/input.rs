@@ -3,17 +3,31 @@ use winit::{dpi::{PhysicalPosition, PhysicalSize}, event::WindowEvent, window::W
 use crate::ui::{Transform, Transformable, Position};
 use crate::ui::application::Application;
 
+use super::ApplyTransform;
+
 
 pub trait InputHandler<A> where A: Application {
-    fn handle(&mut self, input: Input<A>) -> A::State;
+    fn handle(&mut self, input: Input, state: A::State) -> A::State;
 }
 
-pub struct Input<'a, A> where A: Application {
+pub struct Input<'a> {
     pub mouse_position: Position,
     pub input_type: InputType,
     pub event: &'a WindowEvent<'a>,
-    pub window: &'a Window,
-    pub state: A::State
+    pub window: &'a Window
+}
+
+impl<'a> Input<'a> {
+    pub fn transform_and_defer_to<
+        A: Application,
+        T: InputHandler<A> + Transformable
+    >(mut self, handler: &mut T, state: A::State) -> A::State {
+        let transform = handler.transform();
+        self.mouse_position = self.mouse_position.apply(
+            transform.inverse()
+        );
+        handler.handle(self, state)
+    }
 }
 
 pub enum InputType {
@@ -21,13 +35,6 @@ pub enum InputType {
     MouseUp,
     MouseMove {
         moved_since_last_down: bool
-    }
-}
-
-impl<'a, A> Input<'a, A> where A: Application {
-    pub fn defer_to<T: Transformable + InputHandler<A>>(self, thing: &mut T) -> A::State {
-        // transform mouse position
-        thing.handle(self)
     }
 }
 

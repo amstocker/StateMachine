@@ -4,8 +4,8 @@ mod state;
 use wgpu::Color;
 use winit::{event::{WindowEvent, MouseButton, ElementState}, window::Window};
 
-use state::*;
-use crate::sequencer::*;
+pub use state::*;
+use crate::{sequencer::*, ui::input::{InputHandler, Input}, instrument::{Instrument, InstrumentState}};
 use crate::ui::Depth;
 use crate::ui::primitive::{Draw, Primitive, Quad, Text, Line};
 use crate::ui::input::MousePosition;
@@ -327,6 +327,12 @@ impl Transformable for SequencerInterface {
     }
 }
 
+impl InputHandler<Instrument> for SequencerInterface {
+    fn handle(&mut self, input: Input, state: InstrumentState) -> InstrumentState {
+        todo!()
+    }
+}
+
 impl Drawable for SequencerInterface {
     fn draw(&self, draw: &mut Draw) {
         for (channel_index, channel) in self.channels.iter().enumerate() {
@@ -405,6 +411,7 @@ impl Drawable for SequencerInterface {
         }));
     }
 }
+
 
 
 fn mouse_position_to_channel_index(mouse_position: MousePosition) -> usize {

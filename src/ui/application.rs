@@ -22,7 +22,7 @@ pub trait ApplicationConfig<T> where T: Application {
     fn style(&self) -> Style;
 }
 
-pub trait Application: 'static + Sized + Transformable + Drawable + InputHandler<Self> {
+pub trait Application: 'static + Sized + Drawable + InputHandler<Self> {
     type Config: ApplicationConfig<Self>;
     type State: Default + Clone + Copy;
 
@@ -80,10 +80,9 @@ pub trait Application: 'static + Sized + Transformable + Drawable + InputHandler
                         mouse_position,
                         input_type: InputType::MouseDown,
                         event,
-                        window: &window,
-                        state: app_state
+                        window: &window
                     };
-                    app_state = input.defer_to(&mut app);
+                    app_state = app.handle(input, app_state);
                 },
                 Event::RedrawRequested(window_id) if window_id == window.id() => {
                     let mut renderer_controller = renderer.controller();
