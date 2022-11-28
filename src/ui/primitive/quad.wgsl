@@ -26,7 +26,7 @@ fn vs_main(
     var y = instance.position[1] + (model.v_position[1] * h);
     out.clip_position = vec4<f32>(
         2.0 * (instance.transform[0] + instance.transform[2] * x) - 1.0,
-        2.0 * (instance.transform[1] + instance.transform[3] * y) - 1.0,
+        -2.0 * (instance.transform[1] + instance.transform[3] * y) + 1.0,
         instance.position[2],
         1.0
     );

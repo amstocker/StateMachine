@@ -22,7 +22,7 @@ fn vs_main(
     let y = t0 * instance.p[1] + t1 * instance.q[1];
     out.clip_position = vec4<f32>(
         2.0 * (instance.transform[0] + instance.transform[2] * x) - 1.0,
-        2.0 * (instance.transform[1] + instance.transform[3] * y) - 1.0,
+        -2.0 * (instance.transform[1] + instance.transform[3] * y) + 1.0,
         t0 * instance.p[2] + t1 * instance.q[2],
         1.0
     );

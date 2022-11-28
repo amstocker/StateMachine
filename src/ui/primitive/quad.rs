@@ -11,8 +11,8 @@ pub const INSTANCE_BUFFER_SIZE: usize = 128;
 
 const QUAD_VERTICES: &[Vertex] = &[
     Vertex { position: [0.0, 0.0] },
-    Vertex { position: [1.0, 0.0] },
     Vertex { position: [0.0, 1.0] },
+    Vertex { position: [1.0, 0.0] },
     Vertex { position: [1.0, 1.0] }
 ];
 

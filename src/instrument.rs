@@ -4,7 +4,7 @@ use winit::window::{Window, CursorIcon};
 use winit::event::{WindowEvent, MouseButton, ElementState};
 
 use crate::ui::layout::{ThreePanelLayout, ThreePanelLayoutTransform};
-use crate::ui::primitive::{Draw, Primitive, Line};
+use crate::ui::primitive::{Draw, Line, Quad};
 use crate::ui::mouse::MousePosition;
 use crate::ui::{Application, Transform, Depth};
 use crate::config::InstrumentConfig;
@@ -85,7 +85,7 @@ impl Application for Instrument {
         });
 
         let global_layout = ThreePanelLayout {
-            vertical_divide: 0.3,
+            vertical_divide: 0.8,
             horizontal_divide: 0.2
         };
 
@@ -134,8 +134,8 @@ impl Application for Instrument {
             depth: Depth::Mid,
         });
         draw.line(Line {
-            from: (self.global_layout.horizontal_divide, self.global_layout.vertical_divide),
-            to: (self.global_layout.horizontal_divide, 1.0),
+            from: (self.global_layout.horizontal_divide, 0.0),
+            to: (self.global_layout.horizontal_divide, self.global_layout.vertical_divide),
             color: Color::BLACK,
             depth: Depth::Mid,
         });

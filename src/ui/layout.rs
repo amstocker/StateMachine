@@ -73,12 +73,12 @@ impl VerticalTransform {
     pub fn new(divide: f32) -> Self {
         Self {
             top: Transform {
-                translate: (0.0, divide),
-                scale: (1.0, 1.0 - divide)
-            },
-            bottom: Transform {
                 translate: (0.0, 0.0),
                 scale: (1.0, divide)
+            },
+            bottom: Transform {
+                translate: (0.0, divide),
+                scale: (1.0, 1.0 - divide)
             }
         }
     }

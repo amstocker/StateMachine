@@ -28,7 +28,7 @@ impl MousePosition {
     pub fn from_physical(position: &PhysicalPosition<f64>, size: PhysicalSize<u32>) -> MousePosition {
         MousePosition {
             x: position.x as f32 / size.width as f32,
-            y: (size.height as f32 - position.y as f32) / size.height as f32
+            y: position.y as f32 / size.height as f32
         }
     }
 

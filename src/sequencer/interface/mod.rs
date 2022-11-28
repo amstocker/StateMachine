@@ -330,9 +330,6 @@ impl Transformable for SequencerInterface {
 impl Drawable for SequencerInterface {
     fn draw(&self, draw: &mut Draw) {
         for (channel_index, channel) in self.channels.iter().enumerate() {
-            let inv = 1.0 / NUM_CHANNELS as f32;
-            let y = inv * (NUM_CHANNELS as f32 - channel_index as f32);
-            
             for clip in channel.clips.iter().filter(|clip| clip.model.enabled) {
                 draw.quad(clip.quad);
             }
@@ -380,18 +377,19 @@ impl Drawable for SequencerInterface {
                 _ => {},
             }
 
+            let inv = 1.0 / NUM_CHANNELS as f32;
+            let y = inv * channel_index as f32;
             draw.line(Line {
                 from: (0.0, y),
                 to: (1.0, y),
                 color: Color::BLACK,
                 depth: Depth::Mid,
             });
-
             let dy = inv * style::JUNCTION_LANE_PROPORTION;
             let Color { r, g, b, a } = CLEAR_COLOR;
             let s = 0.9;
             draw.quad(Quad {
-                position: (0.0, y - dy),
+                position: (0.0, y),
                 size: (1.0, dy),
                 color: Color { r: s * r, g: s * g, b: s * b, a },
                 depth: Depth::Back,
@@ -402,7 +400,7 @@ impl Drawable for SequencerInterface {
 
 
 fn mouse_position_to_channel_index(mouse_position: MousePosition) -> usize {
-    (NUM_CHANNELS - 1 - (mouse_position.y * NUM_CHANNELS as f32).floor() as usize)
+    ((mouse_position.y * NUM_CHANNELS as f32).floor() as usize)
         .clamp(0, NUM_CHANNELS - 1)
 }
 
@@ -412,16 +410,16 @@ fn mouse_position_to_channel_location(mouse_position: MousePosition, channel_len
 
 fn mouse_position_is_on_junction_lane(mouse_position: MousePosition, channel_index: usize) -> bool {
     let inv = 1.0 / NUM_CHANNELS as f32;
-    let y = 1.0 - inv * channel_index as f32;
+    let y = inv * channel_index as f32;
     
-    y - mouse_position.y < inv * style::JUNCTION_LANE_PROPORTION
+    mouse_position.y - y < inv * style::JUNCTION_LANE_PROPORTION
 }
 
 fn clip_to_quad(channel_index: usize, channel_length: u64, clip: Clip) -> Quad {
     let w = (clip.channel_location_end as f32 - clip.channel_location_start as f32) / channel_length as f32;
     let h = 1.0 / NUM_CHANNELS as f32;
     let x = clip.channel_location_start as f32 / channel_length as f32;
-    let y = 1.0 - h - (channel_index as f32 / NUM_CHANNELS as f32);
+    let y = channel_index as f32 / NUM_CHANNELS as f32;
     Quad {
         position: (x, y),
         size: (w, h),
@@ -433,7 +431,7 @@ fn clip_to_quad(channel_index: usize, channel_length: u64, clip: Clip) -> Quad {
 fn playhead_to_primitive(channel_index: usize, channel_length: u64, playhead: Playhead) -> Primitive {
     let h = 1.0 / NUM_CHANNELS as f32;
     let x = playhead.location as f32 / channel_length as f32;
-    let y = 1.0 - h - (channel_index as f32 / NUM_CHANNELS as f32);
+    let y = channel_index as f32 / NUM_CHANNELS as f32;
     Primitive::Quad(Quad {
         position: (x, y),
         size: (style::MARKER_LINE_WIDTH, h),
@@ -449,9 +447,9 @@ fn reflect_junction_to_primitive(
 ) -> Primitive {
     let h = 1.0 / NUM_CHANNELS as f32;
     let x = channel_location as f32 / channel_length as f32;
-    let y = h * (NUM_CHANNELS as f32 - channel_index as f32);
+    let y = h * channel_index as f32;
     Primitive::Quad(Quad {
-        position: (x, y - h),
+        position: (x, y),
         size: (style::MARKER_LINE_WIDTH, h),
         color: Color::GREEN,
         depth: Depth::Front,
@@ -467,18 +465,18 @@ fn jump_junction_to_primitives(
 ) -> (Primitive, Primitive) {
     let h = 1.0 / NUM_CHANNELS as f32;
     let x = source_channel_location as f32 / channel_length as f32;
-    let y = h * (NUM_CHANNELS as f32 - source_channel_index as f32);
+    let y = h * source_channel_index as f32;
     let x_dest = destination_location as f32 / channel_length as f32;
-    let y_dest = h * (NUM_CHANNELS as f32 - destination_channel_index as f32);
+    let y_dest = h * destination_channel_index as f32;
     (
         Primitive::Quad(Quad {
-            position: (x, y - h),
+            position: (x, y),
             size: (style::MARKER_LINE_WIDTH, h),
             color: Color::BLUE,
             depth: Depth::Front,
         }),
         Primitive::Quad(Quad {
-            position: (x_dest, y_dest - h),
+            position: (x_dest, y_dest),
             size: (style::MARKER_LINE_WIDTH, h),
             color: Color::BLUE,
             depth: Depth::Front,
