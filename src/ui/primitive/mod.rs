@@ -20,6 +20,9 @@ use super::Transformable;
 
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
+pub const MSAA_SAMPLE_COUNT: u32 = 4;
+
+
 pub enum Primitive {
     Quad(Quad),
     Text(Text),
@@ -40,6 +43,7 @@ pub struct Renderer {
     pub size: PhysicalSize<u32>,
     clear_color: Color,
     depth_buffer: TextureView,
+    multisampled_framebuffer: TextureView,
     staging_belt: StagingBelt,
     quad_handler: QuadHandler,
     text_handler: TextHandler,
@@ -153,11 +157,33 @@ impl Renderer {
             bias: DepthBiasState::default(),
         };
 
+        let multisampled_framebuffer = create_multisampled_framebuffer(&device, &config);
+        let multisample_state = MultisampleState {
+            count: MSAA_SAMPLE_COUNT,
+            ..MultisampleState::default()
+        };
+
         let staging_belt = StagingBelt::new(1024);
 
-        let quad_handler = QuadHandler::init(&device, format, depth_stencil_state.clone());
-        let text_handler = TextHandler::init(&device, format, depth_stencil_state.clone(), size);
-        let line_handler = LineHandler::init(&device, format, depth_stencil_state);
+        let quad_handler = QuadHandler::init(
+            &device,
+            format,
+            depth_stencil_state.clone(),
+            multisample_state.clone()
+        );
+        let text_handler = TextHandler::init(
+            &device,
+            format,
+            depth_stencil_state.clone(),
+            multisample_state.clone(),
+            size
+        );
+        let line_handler = LineHandler::init(
+            &device,
+            format,
+            depth_stencil_state,
+            multisample_state
+        );
         
         Self {
             surface,
@@ -167,6 +193,7 @@ impl Renderer {
             size,
             clear_color,
             depth_buffer,
+            multisampled_framebuffer,
             staging_belt,
             quad_handler,
             text_handler,
@@ -182,6 +209,7 @@ impl Renderer {
             self.surface.configure(&self.device, &self.config);
             
             self.depth_buffer = create_depth_buffer(&self.device, self.size);
+            self.multisampled_framebuffer = create_multisampled_framebuffer(&self.device, &self.config);
             self.text_handler.resize(new_size);
         }
     }
@@ -196,23 +224,24 @@ impl Renderer {
     pub fn render(&mut self) {
         let output = self.surface.get_current_texture().unwrap();
         let view = output.texture.create_view(&TextureViewDescriptor::default());
-    
+
         let mut encoder = self.device.create_command_encoder(&CommandEncoderDescriptor {
             label: Some("Render Encoder"),
         });
-    
+   
+        
         let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
             label: Some("Render Pass"),
             color_attachments: &[Some(RenderPassColorAttachment {
-                view: &view,
-                resolve_target: None,
+                view: &self.multisampled_framebuffer,
+                resolve_target: Some(&view),
                 ops: Operations {
                     load: LoadOp::Clear(self.clear_color),
                     store: true,
                 },
             })],
             depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
-                view: &&self.depth_buffer,
+                view: &self.depth_buffer,
                 depth_ops: Some(Operations {
                     load: LoadOp::Clear(0.0),
                     store: true,
@@ -228,7 +257,7 @@ impl Renderer {
             &self.device,
             &mut self.staging_belt,
             &mut encoder,
-            &view,
+            &self.multisampled_framebuffer,
             &self.depth_buffer,
             self.size.width,
             self.size.height
@@ -242,7 +271,10 @@ impl Renderer {
 }
 
 
-fn create_depth_buffer(device: &Device, size: PhysicalSize<u32>) -> TextureView {
+fn create_depth_buffer(
+    device: &Device,
+    size: PhysicalSize<u32>
+) -> TextureView {
     let depth_texture = device.create_texture(&TextureDescriptor {
         label: Some("Depth Buffer"),
         size: Extent3d {
@@ -251,11 +283,33 @@ fn create_depth_buffer(device: &Device, size: PhysicalSize<u32>) -> TextureView 
             depth_or_array_layers: 1,
         },
         mip_level_count: 1,
-        sample_count: 1,
+        sample_count: MSAA_SAMPLE_COUNT,
         dimension: TextureDimension::D2,
         format: DEPTH_FORMAT,
-        usage: TextureUsages::RENDER_ATTACHMENT,
+        usage: TextureUsages::RENDER_ATTACHMENT
     });
 
     depth_texture.create_view(&TextureViewDescriptor::default())
+}
+
+
+fn create_multisampled_framebuffer(
+    device: &Device,
+    config: &SurfaceConfiguration
+) -> TextureView {
+    let multisampled_texture = device.create_texture(&TextureDescriptor {
+        label: Some("Multisampled Framebuffer"),
+        size: Extent3d {
+            width: config.width,
+            height: config.height,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: MSAA_SAMPLE_COUNT,
+        dimension: TextureDimension::D2,
+        format: config.format,
+        usage: TextureUsages::RENDER_ATTACHMENT
+    });
+
+    multisampled_texture.create_view(&TextureViewDescriptor::default())
 }

@@ -49,12 +49,14 @@ impl TextHandler {
         device: &Device,
         format: TextureFormat,
         depth_stencil_state: DepthStencilState,
+        multisample_state: MultisampleState,
         size: PhysicalSize<u32>
     ) -> Self {
         let font: FontArc = JETBRAINS_MONO.into();
         let glyph_brush =
             GlyphBrushBuilder::using_font(font.clone())
                 .depth_stencil_state(depth_stencil_state)
+                .multisample_state(multisample_state)
                 .build(device, format);
 
         let mut handler = Self {

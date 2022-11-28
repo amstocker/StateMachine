@@ -1,7 +1,5 @@
 use bytemuck::{cast_slice, Zeroable, Pod};
-use wgpu::{TextureFormat, Device, include_wgsl, Buffer, RenderPipeline, RenderPass, Queue, Color, DepthStencilState};
-
-use crate::sequencer::NUM_CHANNELS;
+use wgpu::{TextureFormat, Device, include_wgsl, Buffer, RenderPipeline, RenderPass, Queue, Color, DepthStencilState, MultisampleState};
 
 use crate::ui::{Depth, TransformInstance, Transform};
 use crate::util::color_to_f32_array;
@@ -77,7 +75,12 @@ pub struct LineHandler {
 }
 
 impl LineHandler {
-    pub fn init(device: &Device, format: TextureFormat, depth_stencil_state: DepthStencilState) -> LineHandler {
+    pub fn init(
+        device: &Device,
+        format: TextureFormat,
+        depth_stencil_state: DepthStencilState,
+        multisample_state: MultisampleState
+    ) -> LineHandler {
         use wgpu::util::DeviceExt;
 
         let shader = device.create_shader_module(include_wgsl!("line.wgsl"));
@@ -127,7 +130,7 @@ impl LineHandler {
                 conservative: false
             },
             depth_stencil: Some(depth_stencil_state),
-            multisample: wgpu::MultisampleState::default(),
+            multisample: multisample_state,
             multiview: None
         });
 

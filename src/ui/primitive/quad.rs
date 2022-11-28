@@ -1,5 +1,5 @@
 use bytemuck::{Pod, Zeroable, cast_slice};
-use wgpu::{include_wgsl, Device, RenderPipeline, Buffer, RenderPass, TextureFormat, Queue, Color, DepthStencilState};
+use wgpu::{include_wgsl, Device, RenderPipeline, Buffer, RenderPass, TextureFormat, Queue, Color, DepthStencilState, MultisampleState};
 
 use crate::ui::{Depth, TransformInstance, Transform};
 use crate::ui::mouse::MousePosition;
@@ -101,7 +101,12 @@ pub struct QuadHandler {
 }
 
 impl QuadHandler {
-    pub fn init(device: &Device, format: TextureFormat, depth_stencil_state: DepthStencilState) -> Self {
+    pub fn init(
+        device: &Device,
+        format: TextureFormat,
+        depth_stencil_state: DepthStencilState,
+        multisample_state: MultisampleState
+    ) -> Self {
         use wgpu::util::DeviceExt;
 
         let shader = device.create_shader_module(include_wgsl!("quad.wgsl"));
@@ -167,7 +172,7 @@ impl QuadHandler {
                 conservative: false
             },
             depth_stencil: Some(depth_stencil_state),
-            multisample: wgpu::MultisampleState::default(),
+            multisample: multisample_state,
             multiview: None
         });
 
