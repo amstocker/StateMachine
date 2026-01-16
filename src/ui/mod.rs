@@ -3,6 +3,7 @@ pub mod primitive;
 pub mod component;
 pub mod input;
 pub mod layout;
+pub mod grid;
 
 mod application;
 pub use application::*;
