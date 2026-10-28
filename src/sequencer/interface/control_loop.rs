@@ -1,6 +1,6 @@
 use crate::{
     ui::{primitive::{Drawable, Draw}, input::{InputHandler, Input}},
-    instrument::{InstrumentState, Instrument}
+    app::{AppState, App}
 };
 
 
@@ -14,8 +14,8 @@ impl Drawable for ControlLoopInterface {
     }
 }
 
-impl InputHandler<Instrument> for ControlLoopInterface {
-    fn handle(&mut self, input: Input, state: InstrumentState) -> InstrumentState {
+impl InputHandler<App> for ControlLoopInterface {
+    fn handle(&mut self, input: Input, state: AppState) -> AppState {
         todo!()
     }
 }

@@ -1,17 +1,19 @@
-use bytemuck::{cast_slice, Zeroable, Pod};
-use wgpu::{TextureFormat, Device, include_wgsl, Buffer, RenderPipeline, RenderPass, Queue, Color, DepthStencilState, MultisampleState};
+use bytemuck::{Pod, Zeroable};
+use wgpu::{
+    include_wgsl, Color, DepthStencilState, Device, MultisampleState, Queue, RenderPass,
+    RenderPipeline, TextureFormat,
+};
 
-use crate::ui::{Depth, TransformInstance, Transform};
+use crate::ui::{Depth, Transform, TransformInstance};
 use crate::util::color_to_f32_array;
 
-
-const INSTANCE_BUFFER_SIZE: usize = 128;
+use super::{instance_buffer::InstanceBuffer, RenderError};
 
 pub struct Line {
     pub from: (f32, f32),
     pub to: (f32, f32),
     pub color: Color,
-    pub depth: Depth
+    pub depth: Depth,
 }
 
 impl Line {
@@ -21,7 +23,7 @@ impl Line {
             from: [self.from.0, self.from.1, z],
             to: [self.to.0, self.to.1, z],
             color: color_to_f32_array(self.color),
-            transform: transform.into()
+            transform: transform.into(),
         }
     }
 }
@@ -32,7 +34,7 @@ pub struct LineInstance {
     from: [f32; 3],
     to: [f32; 3],
     color: [f32; 4],
-    transform: TransformInstance
+    transform: TransformInstance,
 }
 
 impl LineInstance {
@@ -60,8 +62,8 @@ impl LineInstance {
                 wgpu::VertexAttribute {
                     offset: mem::size_of::<[f32; 10]>() as wgpu::BufferAddress,
                     shader_location: 3,
-                    format: wgpu::VertexFormat::Float32x4
-                }
+                    format: wgpu::VertexFormat::Float32x4,
+                },
             ],
         }
     }
@@ -69,9 +71,7 @@ impl LineInstance {
 
 pub struct LineHandler {
     render_pipeline: RenderPipeline,
-    // instances: [LineInstance; INSTANCE_BUFFER_SIZE],
-    instance_buffer: Buffer,
-    instance_buffer_index: u32
+    instances: InstanceBuffer<LineInstance>,
 }
 
 impl LineHandler {
@@ -79,27 +79,18 @@ impl LineHandler {
         device: &Device,
         format: TextureFormat,
         depth_stencil_state: DepthStencilState,
-        multisample_state: MultisampleState
+        multisample_state: MultisampleState,
     ) -> LineHandler {
-        use wgpu::util::DeviceExt;
-
         let shader = device.create_shader_module(include_wgsl!("line.wgsl"));
 
-        let instances = [LineInstance::zeroed(); INSTANCE_BUFFER_SIZE];
+        let instances = InstanceBuffer::new(device, "Line Instance Buffer");
 
-        let instance_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Line Instance Buffer"),
-                contents: cast_slice(&instances),
-                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            }
-        );
-
-        let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Line Render Pipeline Layout"),
-            bind_group_layouts: &[],
-            push_constant_ranges: &[],
-        });
+        let render_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Line Render Pipeline Layout"),
+                bind_group_layouts: &[],
+                push_constant_ranges: &[],
+            });
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Line Render Pipeline"),
@@ -107,9 +98,7 @@ impl LineHandler {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[
-                    LineInstance::desc()
-                ]
+                buffers: &[LineInstance::desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -117,8 +106,8 @@ impl LineHandler {
                 targets: &[Some(wgpu::ColorTargetState {
                     format,
                     blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL
-                })]
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
             }),
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::LineList,
@@ -127,38 +116,34 @@ impl LineHandler {
                 cull_mode: Some(wgpu::Face::Back),
                 polygon_mode: wgpu::PolygonMode::Fill,
                 unclipped_depth: false,
-                conservative: false
+                conservative: false,
             },
             depth_stencil: Some(depth_stencil_state),
             multisample: multisample_state,
-            multiview: None
+            multiview: None,
         });
 
         Self {
             render_pipeline,
-            // instances,
-            instance_buffer,
-            instance_buffer_index: 0
+            instances,
         }
     }
 
-    pub fn write(&mut self, line: Line, transform: Transform, queue: &Queue) {
-        let instance: LineInstance = line.instance_with_transform(transform);
-        queue.write_buffer(
-            &self.instance_buffer,
-            (self.instance_buffer_index as u64) * (std::mem::size_of::<LineInstance>() as u64),
-            cast_slice(&[instance])
-        );
-        self.instance_buffer_index += 1;
+    pub fn write(&mut self, line: Line, transform: Transform) {
+        self.instances.push(line.instance_with_transform(transform));
+    }
+
+    pub fn prepare(&mut self, device: &Device, queue: &Queue) -> Result<(), RenderError> {
+        self.instances.prepare(device, queue)
+    }
+
+    pub fn clear(&mut self) {
+        self.instances.clear();
     }
 
     pub fn render<'a>(&'a mut self, render_pass: &mut RenderPass<'a>) {
         render_pass.set_pipeline(&self.render_pipeline);
-        render_pass.set_vertex_buffer(0, self.instance_buffer.slice(..));
-        render_pass.draw(
-            0..2,
-            0..self.instance_buffer_index
-        );
-        self.instance_buffer_index = 0;
+        render_pass.set_vertex_buffer(0, self.instances.buffer.slice(..));
+        render_pass.draw(0..2, 0..self.instances.len());
     }
 }

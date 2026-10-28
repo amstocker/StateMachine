@@ -1,36 +1,38 @@
 use wgpu::Color;
 
-use crate::{sound::{Sound, OutputConfig, Float}, ui::{ApplicationConfig, Style}, instrument::{InstrumentState, Instrument}};
-
+use crate::{
+    app::{App, AppState},
+    sound::{Float, OutputConfig, Sound},
+    ui::{ApplicationConfig, Style},
+};
 
 pub const TITLE: &str = "state_machine";
 
 pub const CLEAR_COLOR: Color = Color {
-    r: 255.0 / 255.0,
+    r: 1.0,
     g: 250.0 / 255.0,
     b: 235.0 / 255.0,
-    a: 1.0
+    a: 1.0,
 };
 
-
 #[derive(Default)]
-pub struct InstrumentConfig {
+pub struct AppConfig {
     pub output: OutputConfig,
-    pub sounds: Vec<Sound<Float>>
+    pub sounds: Vec<Sound<Float>>,
 }
 
-impl ApplicationConfig<Instrument> for InstrumentConfig where {
+impl ApplicationConfig<App> for AppConfig {
     fn window_title(&self) -> &str {
         TITLE
     }
 
-    fn init_state(&self) -> Option<InstrumentState> {
+    fn init_state(&self) -> Option<AppState> {
         None
     }
 
     fn style(&self) -> Style {
         Style {
-            clear_color: CLEAR_COLOR
+            clear_color: CLEAR_COLOR,
         }
     }
 }

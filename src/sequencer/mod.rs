@@ -1,24 +1,64 @@
 mod channel;
+pub mod compatibility;
 mod control_loop;
 mod event;
 pub mod interface;
 
-use rtrb::{Consumer, Producer, RingBuffer};
+#[cfg(test)]
+mod tests;
 
+use std::collections::VecDeque;
+
+use rtrb::{Consumer, Producer, PushError, RingBuffer};
+
+use crate::sound::{Float, SoundBank, StereoFrame, StereoFrameGenerator};
 pub use channel::*;
 pub use event::*;
-use crate::sound::{SoundBank, StereoFrame, StereoFrameGenerator, Float};
-
 
 pub const NUM_CHANNELS: usize = 4;
 pub const DEFAULT_CHANNEL_LENGTH: u64 = 500_000;
 
-const SYNC_INTERVAL: u64 = 256;  // frames
+const SYNC_INTERVAL: u64 = 256; // frames
 const RING_BUFFER_CAPACITY: usize = 1024;
+const MAX_PENDING_CONTROLS: usize = 1024;
 
 pub struct SequencerController {
-    pub control_message_sender: Producer<SequencerControlMessage>,
-    pub event_receiver: Consumer<SequencerEvent>
+    control_message_sender: Producer<SequencerControlMessage>,
+    pending_controls: VecDeque<SequencerControlMessage>,
+    pub event_receiver: Consumer<SequencerEvent>,
+}
+
+impl SequencerController {
+    /// Accept an ordered edit, or reject it before the caller changes its model.
+    /// This pending queue belongs to the UI, never the audio callback.
+    pub fn send(&mut self, message: SequencerControlMessage) -> Result<(), EditError> {
+        message.validate()?;
+        self.flush_pending()?;
+        if self.pending_controls.is_empty() {
+            match self.control_message_sender.push(message) {
+                Ok(()) => return Ok(()),
+                Err(PushError::Full(message)) => self.pending_controls.push_back(message),
+            }
+        } else if self.pending_controls.len() < MAX_PENDING_CONTROLS {
+            self.pending_controls.push_back(message);
+        } else {
+            return Err(EditError::QueueFull);
+        }
+        Ok(())
+    }
+
+    pub fn flush_pending(&mut self) -> Result<(), EditError> {
+        if self.control_message_sender.is_abandoned() {
+            return Err(EditError::EngineDisconnected);
+        }
+        while let Some(&message) = self.pending_controls.front() {
+            if self.control_message_sender.push(message).is_err() {
+                break;
+            }
+            self.pending_controls.pop_front();
+        }
+        Ok(())
+    }
 }
 
 pub struct Sequencer {
@@ -27,30 +67,26 @@ pub struct Sequencer {
     summary: SequencerSummary,
     channels: [Channel; NUM_CHANNELS],
     playhead_mutations: [PlayheadMutation; NUM_CHANNELS],
-    sound_bank: SoundBank<Float>
+    sound_bank: SoundBank<Float>,
 }
 
 #[derive(Debug, Default)]
 struct PlayheadMutation {
     updated_this_frame: bool,
-    playhead: Playhead
+    playhead: Playhead,
 }
 
 impl Sequencer {
     pub fn new(sound_bank: SoundBank<Float>) -> (SequencerController, Self) {
-        let (
-            control_message_sender,
-            control_message_receiver
-        ) = RingBuffer::new(RING_BUFFER_CAPACITY);
+        let (control_message_sender, control_message_receiver) =
+            RingBuffer::new(RING_BUFFER_CAPACITY);
 
-        let (
-            event_sender,
-            event_receiver
-        ) = RingBuffer::new(RING_BUFFER_CAPACITY);
-        
+        let (event_sender, event_receiver) = RingBuffer::new(RING_BUFFER_CAPACITY);
+
         let sequencer_controller = SequencerController {
             control_message_sender,
-            event_receiver
+            pending_controls: VecDeque::with_capacity(MAX_PENDING_CONTROLS),
+            event_receiver,
         };
 
         let mut channels: [Channel; NUM_CHANNELS] = Default::default();
@@ -63,20 +99,18 @@ impl Sequencer {
             summary: Default::default(),
             channels,
             playhead_mutations: Default::default(),
-            sound_bank
+            sound_bank,
         };
-        
+
         (sequencer_controller, sequencer)
     }
 
     fn set_clip(&mut self, index: ChannelItemIndex, clip: Clip) {
-        self.channels[index.channel_index]
-            .clips[index.item_index] = clip;
+        self.channels[index.channel_index].clips[index.item_index] = clip;
     }
 
     fn set_junction(&mut self, index: ChannelItemIndex, junction: Junction) {
-        self.channels[index.channel_index]
-            .junctions[index.item_index] = junction;
+        self.channels[index.channel_index].junctions[index.item_index] = junction;
     }
 
     fn set_playhead(&mut self, index: ChannelItemIndex, playhead: Playhead) {
@@ -84,16 +118,23 @@ impl Sequencer {
         self.channels[index.channel_index].playhead = playhead;
     }
 
-    fn handle_control_messsages(&mut self) {
-        while let Ok(message) = self.control_message_receiver.pop() {
+    fn handle_control_messages(&mut self) {
+        // A producer that keeps filling the queue cannot prolong this indefinitely.
+        for _ in 0..RING_BUFFER_CAPACITY {
+            let Ok(message) = self.control_message_receiver.pop() else {
+                break;
+            };
+            if message.validate().is_err() {
+                continue;
+            }
             use SequencerControlMessage::*;
             match message {
                 SyncClip { index, clip } => {
                     self.set_clip(index, clip);
-                },
+                }
                 SyncJunction { index, junction } => {
                     self.set_junction(index, junction);
-                },
+                }
                 SyncPlayhead { index, playhead } => {
                     self.set_playhead(index, playhead);
                 }
@@ -114,32 +155,32 @@ impl Sequencer {
                     JunctionType::Jump {
                         destination_channel_index,
                         destination_location,
-                        split
+                        split,
                     } => {
                         self.playhead_mutations[destination_channel_index] = PlayheadMutation {
                             updated_this_frame: true,
-                            playhead: Playhead { 
+                            playhead: Playhead {
                                 state: PlayheadState::Playing,
                                 location: destination_location,
-                                direction: channel.playhead.direction
-                            }
+                                direction: channel.playhead.direction,
+                            },
                         };
                         if !split {
                             channel.stop();
                         }
-                    },
+                    }
                     JunctionType::Reflect => {
                         self.playhead_mutations[channel_index] = PlayheadMutation {
                             updated_this_frame: true,
-                            playhead: Playhead { 
+                            playhead: Playhead {
                                 direction: match channel.playhead.direction {
                                     PlayheadDirection::Right => PlayheadDirection::Left,
                                     PlayheadDirection::Left => PlayheadDirection::Right,
                                 },
                                 ..channel.playhead
-                            }
+                            },
                         }
-                    },
+                    }
                     JunctionType::Stop => {
                         channel.stop();
                     }
@@ -149,7 +190,9 @@ impl Sequencer {
     }
 
     fn handle_playhead_mutations_single_frame(&mut self) {
-        for (channel, mutation) in self.channels.iter_mut()
+        for (channel, mutation) in self
+            .channels
+            .iter_mut()
             .zip(self.playhead_mutations.iter_mut())
         {
             if mutation.updated_this_frame {
@@ -171,30 +214,30 @@ impl Sequencer {
         self.step_playheads_single_frame();
         self.handle_junctions_single_frame();
         self.handle_playhead_mutations_single_frame();
-        self.update_summary_single_frame();        
+        self.update_summary_single_frame();
     }
 
     fn sum_output_single_frame(&mut self) -> StereoFrame<Float> {
         let mut out_frame = StereoFrame::zero();
         for channel in &self.channels {
-            out_frame += channel.get_current_sound_bank_index()
-                                .and_then(
-                                    |index| self.sound_bank.get_frame(index)
-                                )
-                                .unwrap_or_default();
+            out_frame += channel
+                .get_current_sound_bank_index()
+                .and_then(|index| self.sound_bank.get_frame(index))
+                .unwrap_or_default();
         }
         out_frame
     }
 
     fn send_summary(&mut self) {
-        self.event_sender.push(SequencerEvent::Tick(self.summary)).unwrap();
+        // Status is disposable: UI stalls must not interrupt audio processing.
+        let _ = self.event_sender.push(SequencerEvent::Tick(self.summary));
     }
 }
 
 impl StereoFrameGenerator<Float> for Sequencer {
     fn next_frame(&mut self) -> StereoFrame<Float> {
         if self.summary.total_frames_processed % SYNC_INTERVAL == 0 {
-            self.handle_control_messsages();
+            self.handle_control_messages();
             self.send_summary();
         }
         self.update_single_frame();

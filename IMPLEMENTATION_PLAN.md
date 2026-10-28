@@ -8,7 +8,7 @@ The [design references](design/README.md) record visual directions for later exp
 
 Each phase should leave a runnable application. Keep changes in small commits that separate behavior changes from dependency migrations. Regression tests should express the intended behavior and land with the relevant fixes.
 
-The Rust toolchain update to 1.99.1 is complete. The existing dependencies build with that compiler. Locally, `.gitignore` already allows `Cargo.lock`, but the lockfile is still untracked. The application currently has no automated tests. The rendering performance recommendations below are hypotheses to measure, rather than promised speedups.
+The Rust toolchain update to 1.99.1 is complete and pinned in `rust-toolchain.toml`; `Cargo.lock` is tracked. The first implementation batch establishes a library/test entry point, formatting and macOS CI, and the phase 1 stabilization changes. Phase 2 now provides an independent project model, validation, and a headless control-score evaluator; its initial semantics and migration boundary are recorded in [MODEL.md](MODEL.md). The current demo reads a temporary frame-based document through a compatibility session. The new editor, scheduler, and dependency migrations remain subsequent work. See [development and validation notes](DEVELOPMENT.md) for regression coverage, the measured release reference, and remaining manual checks. Rendering performance recommendations remain hypotheses to measure, rather than promised speedups.
 
 **The recommended order establishes correctness, then editing boundaries, then replaces infrastructure and adds visualization.**
 
@@ -62,13 +62,15 @@ flowchart LR
 
 **Phase 0 establishes a reproducible baseline.**
 
-- Track the existing `Cargo.lock` in the first implementation commit, preserving the local `.gitignore` change. Pin the tested compiler in `rust-toolchain.toml`; establish a minimum supported Rust version only when it has actually been tested.
+- Keep the existing tracked `Cargo.lock` and `.gitignore` policy. Pin the tested compiler in `rust-toolchain.toml`; establish a minimum supported Rust version only when it has actually been tested.
 - Document build/run commands, demo interactions, and the expected four-sample starting project. Note the current local workaround, `DEVELOPER_DIR=/Library/Developer/CommandLineTools`, for the Xcode license issue without changing the machine's global developer-tool selection.
 - Add a library/test entry point and a small device-independent control/audio harness. Preserve the review's reproduction cases as the starting regression backlog, changing their assertions to expect corrected behavior when their fixes land.
 - Establish formatting and compiler/Clippy baselines. Separate mechanical formatting from functional changes. Add CI for the primary macOS build and pure logic tests; expand platform coverage deliberately as native dependency setup is validated.
 - Capture a release-build reference: idle redraw frequency and CPU usage, playback behavior, and a few reference images of the current UI. Record workload, window size, and device with measurements.
 
 Completion: a fresh checkout has repeatable build instructions and a locked dependency graph; CI runs the initial checks; the baseline demo behavior is documented.
+
+Status: build instructions, toolchain pin, library/test harness, formatting, local compiler/Clippy checks, and CI configuration are implemented. A release idle measurement is recorded. Hosted CI, reference screenshots, and interactive playback/minimize checks remain unverified.
 
 **Phase 1 fixes the small, reproducible failures on the existing stack.**
 
@@ -81,6 +83,8 @@ Completion: a fresh checkout has repeatable build instructions and a locked depe
 
 Completion: regression tests cover queue saturation, bounds failures, junction ownership, and downsampling. A stress scene can exceed 128 shapes. Resizing/minimizing/restoring the window does not panic or duplicate drawing state.
 
+Status: stabilization code and regression coverage are implemented. Junction ownership was already corrected in the starting checkout and is now covered by a test. GPU pixel-readback and the window stress example pass locally; the example exercises resize and zero-size suspension. Actual OS minimize/restore and forced surface-loss/timeout recovery remain unverified. The sample loader intentionally rejects stereo and unsupported bit depths until phase 5.
+
 **Phase 2 models control material, instruments, and routing independently.**
 
 - Introduce a project with one designated main score, reusable auxiliary control scores, typed events, sequence placements, instrument definitions, control routes, mixer channels/audio routes, and sample references. Control tracks edit/present sequences; their identities and count are independent of instruments and mixer channels.
@@ -92,6 +96,8 @@ Completion: regression tests cover queue saturation, bounds failures, junction o
 - Separate project metadata, UI interaction state, runtime state, and decoded assets. Replace cached `ClipInterface.model` copies with project views and explicit cache invalidation. Adapt the demo's simple sample behavior while the new control model develops; expose model validation and event evaluation without a window or audio device.
 
 Completion: headless fixtures show a main score referencing an editable auxiliary drum score, selecting/retiming its events, and resolving them to an instrument destination and audio output path. Tests cover stable references, route type errors, local-to-score timing, source edits updating affected slices, and the difference between source edits and placement edits.
+
+Status: the phase 2 headless model and fixture are implemented in `src/model`, with typed IDs, 960-tick musical time, exact composed transforms, validation, and explicit evaluation limits. `cargo run --example control_score` demonstrates source edits propagating through chopped/repeated placements. Sixteen model tests cover the completion criteria and failure cases. The coordinator is renamed to `App`; old clip/junction data and queue publication now live in `PrototypeSession`, and UI geometry is derived from document reads. The windowed demo still uses its original frame-based engine; the new model is not yet the interactive document. Launch/stop events are represented and validated, but runtime execution, sustained/reversed events, and audible mixing remain phase 4. See [model semantics](MODEL.md) before extending these operations.
 
 **Phase 3 introduces the editor and proves it with control editing.**
 
@@ -183,6 +189,6 @@ Completion: tests cover silence, impulses, stereo phase differences, overloads, 
 
 Completion: representative workloads have recorded results, idle rendering is demand-driven, audio timing and memory use remain bounded, and the repository documents the actual implemented boundaries.
 
-**The first implementation change should establish the baseline and fix telemetry queue saturation.**
+**The next implementation change should introduce the editor and undo history.**
 
-Track the lockfile, establish the test entry point, and add a regression that keeps the sequencer running while the UI stops consuming status. Make that test pass by treating telemetry as disposable. Follow with bounds/junction fixes and the narrow downsampling repair. Then extract the control-oriented model and editor, prove one undoable event move, and make the score-to-transformed-sequence-to-sampler example audible before investing in the later infrastructure and interface work.
+The baseline, stabilization, and headless project-model batches are implemented with the verification limits noted above. Next, give the new `Project` a validated editor boundary and prove an undoable event move within and between sequences while preserving its ID. Keep the ID allocator outside history snapshots, establish revisions and transaction behavior, and then connect the editor to the composition interface. The phase 4 engine will make the score-to-transformed-sequence-to-sampler example audible. Keep the original demo's compatibility session until its replacement can preserve the required interactions; dependency migrations and visual design remain later work.

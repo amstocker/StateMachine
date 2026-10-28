@@ -1,7 +1,7 @@
 use crate::{
     sound::{SoundBankController, Float},
     ui::{primitive::{Drawable, Draw}, input::{InputHandler, Input}},
-    instrument::{InstrumentState, Instrument}
+    app::{AppState, App}
 };
 
 
@@ -23,8 +23,8 @@ impl Drawable for SoundBankInterface {
     }
 }
 
-impl InputHandler<Instrument> for SoundBankInterface {
-    fn handle(&mut self, input: Input, state: InstrumentState) -> InstrumentState {
+impl InputHandler<App> for SoundBankInterface {
+    fn handle(&mut self, input: Input, state: AppState) -> AppState {
         todo!()
     }
 }

@@ -1,11 +1,10 @@
 const MAX_TRIGGERS: usize = 128;
 
-
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Trigger {
     location: u64,
     destination_channel_index: usize,
-    destination_location: u64
+    destination_location: u64,
 }
 
 pub struct ControlLoop {
@@ -13,17 +12,17 @@ pub struct ControlLoop {
     length: u64,
     location: u64,
     playing: bool,
-    samples_per_interval: u64
+    samples_per_interval: u64,
 }
 
 impl ControlLoop {
     pub fn new(length: u64) -> ControlLoop {
-        Self { 
+        Self {
             triggers: [Trigger::default(); MAX_TRIGGERS],
             length,
             location: 0,
             playing: false,
-            samples_per_interval: 24_000
+            samples_per_interval: 24_000,
         }
     }
 
@@ -35,9 +34,7 @@ impl ControlLoop {
         self.playing = false;
     }
 
-    fn update_on_interval(&mut self) {
-
-    }
+    fn update_on_interval(&mut self) {}
 
     pub fn update(&mut self) {
         if self.playing {

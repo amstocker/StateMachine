@@ -1,47 +1,42 @@
-use wgpu::*;
 use wgpu::util::StagingBelt;
-use wgpu_glyph::{GlyphBrush, GlyphBrushBuilder};
+use wgpu::*;
 use wgpu_glyph::{ab_glyph::FontArc, Section};
+use wgpu_glyph::{GlyphBrush, GlyphBrushBuilder};
 use winit::dpi::PhysicalSize;
 
-use crate::ui::{Depth, Transform};
 use crate::ui::fonts::*;
+use crate::ui::{Depth, Transform};
 use crate::util::color_to_f32_array;
-
 
 pub struct Text {
     pub label: String,
     pub position: (f32, f32),
     pub scale: f32,
     pub color: Color,
-    pub depth: Depth
+    pub depth: Depth,
 }
 
 impl Text {
-    fn into_section_with_transform(&self, bounds: (f32, f32), transform: Transform) -> Section {
+    fn section_with_transform(&self, bounds: (f32, f32), transform: Transform) -> Section<'_> {
         let x = self.position.0 + transform.translate.0;
         let y = self.position.1 + transform.translate.1;
         Section {
-            screen_position: (
-                x * bounds.0,
-                y * bounds.1
-            ),
+            screen_position: (x * bounds.0, y * bounds.1),
             bounds,
-            text: vec![
-                wgpu_glyph::Text::new(&self.label)
-                    .with_color(color_to_f32_array(self.color))
-                    .with_scale(self.scale)
-                    .with_z(self.depth.z())
-            ],
+            text: vec![wgpu_glyph::Text::new(&self.label)
+                .with_color(color_to_f32_array(self.color))
+                .with_scale(self.scale)
+                .with_z(self.depth.z())],
             ..Section::default()
         }
     }
 }
 
 pub struct TextHandler {
+    pending: Vec<(Text, Transform)>,
     glyph_brush: GlyphBrush<DepthStencilState>,
     bounds: (f32, f32),
-    font_character_ratio: f32
+    font_character_ratio: f32,
 }
 
 impl TextHandler {
@@ -50,19 +45,19 @@ impl TextHandler {
         format: TextureFormat,
         depth_stencil_state: DepthStencilState,
         multisample_state: MultisampleState,
-        size: PhysicalSize<u32>
+        size: PhysicalSize<u32>,
     ) -> Self {
         let font: FontArc = JETBRAINS_MONO.into();
-        let glyph_brush =
-            GlyphBrushBuilder::using_font(font.clone())
-                .depth_stencil_state(depth_stencil_state)
-                .multisample_state(multisample_state)
-                .build(device, format);
+        let glyph_brush = GlyphBrushBuilder::using_font(font.clone())
+            .depth_stencil_state(depth_stencil_state)
+            .multisample_state(multisample_state)
+            .build(device, format);
 
         let mut handler = Self {
+            pending: Vec::new(),
             glyph_brush,
             bounds: (0.0, 0.0),
-            font_character_ratio: measure_monospace_font_character_ratio(font)
+            font_character_ratio: measure_monospace_font_character_ratio(font),
         };
         handler.resize(size);
         handler
@@ -76,8 +71,14 @@ impl TextHandler {
         self.bounds = (size.width as f32, size.height as f32);
     }
 
-    pub fn write(&mut self, text: &Text, transform: Transform) {
-        self.glyph_brush.queue(text.into_section_with_transform(self.bounds, transform));
+    pub fn write(&mut self, text: Text, transform: Transform) {
+        // Defer glyph queuing until a surface frame is acquired. Skipped frames
+        // can then discard text without leaving work inside the glyph brush.
+        self.pending.push((text, transform));
+    }
+
+    pub fn clear(&mut self) {
+        self.pending.clear();
     }
 
     pub fn render(
@@ -88,8 +89,12 @@ impl TextHandler {
         view: &TextureView,
         depth_view: &TextureView,
         width: u32,
-        height: u32
+        height: u32,
     ) {
+        for (text, transform) in self.pending.drain(..) {
+            self.glyph_brush
+                .queue(text.section_with_transform(self.bounds, transform));
+        }
         self.glyph_brush
             .draw_queued(
                 device,
@@ -97,7 +102,7 @@ impl TextHandler {
                 encoder,
                 view,
                 RenderPassDepthStencilAttachment {
-                    view: &depth_view,
+                    view: depth_view,
                     depth_ops: Some(Operations {
                         load: LoadOp::Load,
                         store: true,

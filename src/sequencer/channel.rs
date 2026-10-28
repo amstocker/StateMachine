@@ -1,26 +1,27 @@
-use crate::sound::{SoundBankIndex, Float};
+use crate::sound::{Float, SoundBankIndex};
 
 pub const MAX_CLIPS_PER_CHANNEL: usize = 32;
 pub const MAX_JUNCTIONS_PER_CHANNEL: usize = 32;
 
-
 #[derive(Debug, Default, Clone, Copy)]
 pub enum PlayheadState {
     Playing,
-    #[default] Stopped
+    #[default]
+    Stopped,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
 pub enum PlayheadDirection {
-    #[default] Right,
-    Left
+    #[default]
+    Right,
+    Left,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Playhead {
     pub state: PlayheadState,
     pub location: u64,
-    pub direction: PlayheadDirection
+    pub direction: PlayheadDirection,
 }
 
 #[derive(Default)]
@@ -29,7 +30,7 @@ pub struct Channel {
     pub junctions: [Junction; MAX_JUNCTIONS_PER_CHANNEL],
     pub playhead: Playhead,
     pub playhead_override_this_frame: bool,
-    pub length: u64
+    pub length: u64,
 }
 
 impl Channel {
@@ -46,9 +47,9 @@ impl Channel {
                     if playhead.location >= self.length {
                         playhead.state = PlayheadState::Stopped;
                     }
-                },
+                }
                 PlayheadDirection::Left => {
-                    if playhead.location <= 0 {
+                    if playhead.location == 0 {
                         playhead.state = PlayheadState::Stopped;
                     } else {
                         playhead.location -= 1;
@@ -61,7 +62,7 @@ impl Channel {
     pub fn is_playing(&self) -> bool {
         match self.playhead.state {
             PlayheadState::Playing => true,
-            PlayheadState::Stopped => false
+            PlayheadState::Stopped => false,
         }
     }
 
@@ -90,12 +91,12 @@ impl Channel {
             if !clip.enabled {
                 continue;
             }
-            if self.playhead.location >= clip.channel_location_start &&
-               self.playhead.location <  clip.channel_location_end
+            if self.playhead.location >= clip.channel_location_start
+                && self.playhead.location < clip.channel_location_end
             {
                 return Some(SoundBankIndex {
                     source_index: clip.source_index,
-                    frame_index: (self.playhead.location - clip.channel_location_start) as usize
+                    frame_index: (self.playhead.location - clip.channel_location_start) as usize,
                 });
             }
         }
@@ -115,7 +116,7 @@ pub struct Clip {
     // Mapping of source to clip
     //  - length of clip cannot exceed length of scaled and shifted source
     pub source_scale: Float,
-    pub source_shift: u64
+    pub source_shift: u64,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -123,10 +124,11 @@ pub enum JunctionType {
     Jump {
         destination_channel_index: usize,
         destination_location: u64,
-        split: bool
+        split: bool,
     },
     Reflect,
-    #[default] Stop
+    #[default]
+    Stop,
 }
 
 #[derive(Debug, Default, Clone, Copy)]

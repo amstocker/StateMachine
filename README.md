@@ -34,8 +34,23 @@ interface and musical semantics remain open to experimentation.
 - [Project vision](VISION.md) records the direction and open design questions.
 - [Implementation plan](IMPLEMENTATION_PLAN.md) orders the architecture changes,
   dependency migrations, and correctness fixes.
+- [Control model](MODEL.md) documents the implemented project types, timing and
+  slice semantics, routing, and the headless composition example.
 - [Visual references](design/README.md) collect ideas for later colors, textures,
   styles, and shader experiments.
+- [Development and validation](DEVELOPMENT.md) explains how to run the demo,
+  execute the regression and rendering checks, and reproduce baseline measurements.
+
+# Running
+
+From the repository root, with Rust installed through rustup:
+
+```sh
+cargo run --locked
+```
+
+The repository pins the tested Rust toolchain. See the development notes for the
+local macOS command-line-tools workaround if Xcode reports a license error.
 
 # Technology
 

@@ -95,7 +95,7 @@ The initial sample bank and a minimal interface are enough for this example. Use
 
 **Musical semantics that need experiments should stay explicit.**
 
-- **Time:** whether the primary authoring unit is beats/ticks, absolute time, or both; how tempo changes interact with nested timing transformations. Control time must remain distinct from source audio frames and device frames.
+- **Time:** the first headless model uses 960 musical ticks per quarter-note beat and one constant tempo, retaining exact fractional ticks through nested transforms. Source audio frames and device frames are distinct types. Tempo maps, absolute-time authoring, and their interaction with nesting remain open experiments; see [MODEL.md](MODEL.md).
 - **Slices and reversal:** what happens to a sustained event that begins before a selected region, ends after it, or crosses a reverse/loop boundary. Event durations, onset/release pairing, and parameter state need defined rules; reversing a list alone does not establish those rules.
 - **Launching:** retrigger versus independent instances, stop behavior, whether the caller's end stops descendants, and how parameters and routes are inherited or overridden per placement.
 - **Recursion and feedback:** how sequences may trigger themselves or each other, and whether routing feedback is musically useful. The first scheduler should allow explicit time-advancing repetition while rejecting unsupported recursive launches and zero-delay cycles. Set execution limits and define cleanup so a malformed experiment cannot hang the audio callback or leave stuck voices.

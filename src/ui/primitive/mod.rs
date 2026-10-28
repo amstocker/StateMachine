@@ -1,3 +1,4 @@
+mod instance_buffer;
 mod line;
 mod quad;
 mod text;
@@ -8,26 +9,29 @@ pub use quad::*;
 pub use text::*;
 pub use vertex::*;
 
-use wgpu::*;
-use wgpu::util::StagingBelt;
-use winit::{window::Window, dpi::PhysicalSize};
 use pollster::block_on;
+use wgpu::util::StagingBelt;
+use wgpu::*;
+use winit::{dpi::PhysicalSize, window::Window};
 
-use crate::ui::{Transform, Transformable, application::Style};
-
+use crate::ui::{application::Style, Transform, Transformable};
 
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
 pub const MSAA_SAMPLE_COUNT: u32 = 4;
 
+#[derive(Debug)]
+pub enum RenderError {
+    OutOfMemory,
+    InstanceCapacityExceeded,
+}
 
 pub enum Primitive {
     Quad(Quad),
     Text(Text),
     Line(Line),
-    Mesh
+    Mesh,
 }
-
 
 pub trait Drawable {
     fn draw(&self, draw: &mut Draw);
@@ -45,12 +49,12 @@ pub struct Renderer {
     staging_belt: StagingBelt,
     quad_handler: QuadHandler,
     text_handler: TextHandler,
-    line_handler: LineHandler
+    line_handler: LineHandler,
 }
 
 pub struct Draw<'r> {
     renderer: &'r mut Renderer,
-    global_transform: Transform
+    global_transform: Transform,
 }
 
 impl<'r> Draw<'r> {
@@ -83,28 +87,27 @@ impl<'r> Draw<'r> {
 
     pub fn primitive_with_transform(&mut self, primitive: Primitive, transform: Transform) {
         let Renderer {
-            queue,
             quad_handler,
             text_handler,
             line_handler,
             ..
         } = self.renderer;
         match primitive {
-            Primitive::Quad(quad) => {
-                quad_handler.write(quad, transform, queue)
-            },
-            Primitive::Text(ref text) => {
+            Primitive::Quad(quad) => quad_handler.write(quad, transform),
+            Primitive::Text(text) => {
                 text_handler.write(text, transform);
-            },
+            }
             Primitive::Line(line) => {
-                line_handler.write(line, transform, queue);
-            },
+                line_handler.write(line, transform);
+            }
             Primitive::Mesh => todo!(),
         }
     }
 
     pub fn text_length_to_width(&self, length: usize, scale: f32) -> f32 {
-        self.renderer.text_handler.text_length_to_width(length, scale)
+        self.renderer
+            .text_handler
+            .text_length_to_width(length, scale)
     }
 
     fn push_transform(&mut self, transform: Transform) {
@@ -118,13 +121,12 @@ impl Renderer {
 
         let instance = Instance::new(Backends::all());
         let surface = unsafe { instance.create_surface(window) };
-        let adapter = block_on(instance.request_adapter(
-            &RequestAdapterOptions {
-                power_preference: PowerPreference::default(),
-                compatible_surface: Some(&surface),
-                force_fallback_adapter: false,
-            },
-        )).unwrap();
+        let adapter = block_on(instance.request_adapter(&RequestAdapterOptions {
+            power_preference: PowerPreference::default(),
+            compatible_surface: Some(&surface),
+            force_fallback_adapter: false,
+        }))
+        .unwrap();
 
         let (device, queue) = block_on(adapter.request_device(
             &DeviceDescriptor {
@@ -133,22 +135,26 @@ impl Renderer {
                 label: None,
             },
             None,
-        )).unwrap();
+        ))
+        .unwrap();
 
         let format = surface.get_supported_formats(&adapter)[0];
         let config = SurfaceConfiguration {
             usage: TextureUsages::RENDER_ATTACHMENT,
             format,
-            width: size.width,
-            height: size.height,
+            width: size.width.max(1),
+            height: size.height.max(1),
             present_mode: PresentMode::Fifo,
             alpha_mode: CompositeAlphaMode::Auto,
         };
-        surface.configure(&device, &config);
+        if size.width > 0 && size.height > 0 {
+            surface.configure(&device, &config);
+        }
 
         let staging_belt = StagingBelt::new(1024);
 
-        let depth_buffer = create_depth_buffer(&device, size);
+        let depth_buffer =
+            create_depth_buffer(&device, PhysicalSize::new(config.width, config.height));
         let depth_stencil_state = DepthStencilState {
             format: DEPTH_FORMAT,
             depth_write_enabled: true,
@@ -167,22 +173,18 @@ impl Renderer {
             &device,
             format,
             depth_stencil_state.clone(),
-            multisample_state.clone()
+            multisample_state,
         );
         let text_handler = TextHandler::init(
             &device,
             format,
             depth_stencil_state.clone(),
-            multisample_state.clone(),
-            size
+            multisample_state,
+            size,
         );
-        let line_handler = LineHandler::init(
-            &device,
-            format,
-            depth_stencil_state,
-            multisample_state
-        );
-        
+        let line_handler =
+            LineHandler::init(&device, format, depth_stencil_state, multisample_state);
+
         Self {
             surface,
             device,
@@ -195,39 +197,71 @@ impl Renderer {
             staging_belt,
             quad_handler,
             text_handler,
-            line_handler
+            line_handler,
         }
     }
 
     pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
+        self.size = new_size;
+        self.discard_frame();
         if new_size.width > 0 && new_size.height > 0 {
-            self.size = new_size;
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
-            
+
             self.depth_buffer = create_depth_buffer(&self.device, self.size);
-            self.multisampled_framebuffer = create_multisampled_framebuffer(&self.device, &self.config);
+            self.multisampled_framebuffer =
+                create_multisampled_framebuffer(&self.device, &self.config);
             self.text_handler.resize(new_size);
         }
     }
 
-    pub fn controller(&mut self) -> Draw {
+    pub fn controller(&mut self) -> Draw<'_> {
         Draw {
             renderer: self,
-            global_transform: Transform::identity()
+            global_transform: Transform::identity(),
         }
     }
 
-    pub fn render(&mut self) {
-        let output = self.surface.get_current_texture().unwrap();
-        let view = output.texture.create_view(&TextureViewDescriptor::default());
+    /// Clear pending shapes and text on every path, including suspended or
+    /// recoverable surface failures, so the next frame starts from scratch.
+    pub fn render(&mut self) -> Result<(), RenderError> {
+        let result = self.render_frame();
+        self.discard_frame();
+        result
+    }
 
-        let mut encoder = self.device.create_command_encoder(&CommandEncoderDescriptor {
-            label: Some("Render Encoder"),
-        });
-   
-        
+    fn discard_frame(&mut self) {
+        self.quad_handler.clear();
+        self.line_handler.clear();
+        self.text_handler.clear();
+    }
+
+    fn render_frame(&mut self) -> Result<(), RenderError> {
+        if self.size.width == 0 || self.size.height == 0 {
+            return Ok(());
+        }
+        let output = match self.surface.get_current_texture() {
+            Ok(output) => output,
+            Err(SurfaceError::Lost | SurfaceError::Outdated) => {
+                self.surface.configure(&self.device, &self.config);
+                return Ok(());
+            }
+            Err(SurfaceError::Timeout) => return Ok(()),
+            Err(SurfaceError::OutOfMemory) => return Err(RenderError::OutOfMemory),
+        };
+        self.quad_handler.prepare(&self.device, &self.queue)?;
+        self.line_handler.prepare(&self.device, &self.queue)?;
+        let view = output
+            .texture
+            .create_view(&TextureViewDescriptor::default());
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&CommandEncoderDescriptor {
+                label: Some("Render Encoder"),
+            });
+
         let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
             label: Some("Render Pass"),
             color_attachments: &[Some(RenderPassColorAttachment {
@@ -250,7 +284,7 @@ impl Renderer {
         self.quad_handler.render(&mut render_pass);
         self.line_handler.render(&mut render_pass);
         drop(render_pass);
-        
+
         self.text_handler.render(
             &self.device,
             &mut self.staging_belt,
@@ -258,10 +292,10 @@ impl Renderer {
             &self.multisampled_framebuffer,
             &self.depth_buffer,
             self.size.width,
-            self.size.height
+            self.size.height,
         );
 
-        let final_pass =  encoder.begin_render_pass(&RenderPassDescriptor {
+        let final_pass = encoder.begin_render_pass(&RenderPassDescriptor {
             label: Some("Multisample Resolve Render Pass"),
             color_attachments: &[Some(RenderPassColorAttachment {
                 view: &self.multisampled_framebuffer,
@@ -271,22 +305,19 @@ impl Renderer {
                     store: false,
                 },
             })],
-            depth_stencil_attachment: None
+            depth_stencil_attachment: None,
         });
         drop(final_pass);
-    
+
         self.staging_belt.finish();
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
         self.staging_belt.recall();
+        Ok(())
     }
 }
 
-
-fn create_depth_buffer(
-    device: &Device,
-    size: PhysicalSize<u32>
-) -> TextureView {
+fn create_depth_buffer(device: &Device, size: PhysicalSize<u32>) -> TextureView {
     let depth_texture = device.create_texture(&TextureDescriptor {
         label: Some("Depth Buffer"),
         size: Extent3d {
@@ -298,17 +329,13 @@ fn create_depth_buffer(
         sample_count: MSAA_SAMPLE_COUNT,
         dimension: TextureDimension::D2,
         format: DEPTH_FORMAT,
-        usage: TextureUsages::RENDER_ATTACHMENT
+        usage: TextureUsages::RENDER_ATTACHMENT,
     });
 
     depth_texture.create_view(&TextureViewDescriptor::default())
 }
 
-
-fn create_multisampled_framebuffer(
-    device: &Device,
-    config: &SurfaceConfiguration
-) -> TextureView {
+fn create_multisampled_framebuffer(device: &Device, config: &SurfaceConfiguration) -> TextureView {
     let multisampled_texture = device.create_texture(&TextureDescriptor {
         label: Some("Multisampled Framebuffer"),
         size: Extent3d {
@@ -320,7 +347,7 @@ fn create_multisampled_framebuffer(
         sample_count: MSAA_SAMPLE_COUNT,
         dimension: TextureDimension::D2,
         format: config.format,
-        usage: TextureUsages::RENDER_ATTACHMENT
+        usage: TextureUsages::RENDER_ATTACHMENT,
     });
 
     multisampled_texture.create_view(&TextureViewDescriptor::default())

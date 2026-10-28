@@ -1,25 +1,24 @@
-use crate::ui::{Transform, Position};
+use crate::ui::{Position, Transform};
 
 use super::ApplyTransform;
-
 
 #[derive(Debug)]
 pub enum HorizontalPosition {
     Left,
-    Right
+    Right,
 }
 
 #[derive(Debug)]
 pub enum VerticalPosition {
     Top,
-    Bottom
+    Bottom,
 }
 
 #[derive(Debug)]
 pub enum ThreePanelPosition {
     Main,
     Side,
-    Bottom
+    Bottom,
 }
 
 #[derive(Debug)]
@@ -28,28 +27,30 @@ pub struct ThreePanelLayout {
     pub horizontal: HorizontalLayout,
     main_panel_transform: Transform,
     side_panel_transform: Transform,
-    bottom_panel_transform: Transform
+    bottom_panel_transform: Transform,
 }
 
 impl ThreePanelLayout {
     pub fn new(vertical_divide: f32, horizontal_divide: f32) -> ThreePanelLayout {
         let vertical = VerticalLayout::new(vertical_divide);
         let horizontal = HorizontalLayout::new(horizontal_divide);
-        ThreePanelLayout { 
+        ThreePanelLayout {
             vertical,
             horizontal,
             main_panel_transform: vertical.top.then(horizontal.right),
             side_panel_transform: vertical.top.then(horizontal.left),
-            bottom_panel_transform: vertical.bottom
+            bottom_panel_transform: vertical.bottom,
         }
     }
 
     pub fn select(&self, position: Position) -> ThreePanelPosition {
         match self.vertical.select(position) {
-            VerticalPosition::Top => match self.horizontal.select(position.apply(self.vertical.top)) {
-                HorizontalPosition::Left => ThreePanelPosition::Side,
-                HorizontalPosition::Right => ThreePanelPosition::Main,
-            },
+            VerticalPosition::Top => {
+                match self.horizontal.select(position.apply(self.vertical.top)) {
+                    HorizontalPosition::Left => ThreePanelPosition::Side,
+                    HorizontalPosition::Right => ThreePanelPosition::Main,
+                }
+            }
             VerticalPosition::Bottom => ThreePanelPosition::Bottom,
         }
     }
@@ -67,7 +68,7 @@ impl ThreePanelLayout {
 pub struct HorizontalLayout {
     pub divide: f32,
     left: Transform,
-    right: Transform
+    right: Transform,
 }
 
 impl HorizontalLayout {
@@ -76,12 +77,12 @@ impl HorizontalLayout {
             divide,
             left: Transform {
                 translate: (0.0, 0.0),
-                scale: (divide, 1.0)
+                scale: (divide, 1.0),
             },
             right: Transform {
                 translate: (divide, 0.0),
-                scale: (1.0 - divide, 1.0)
-            }
+                scale: (1.0 - divide, 1.0),
+            },
         }
     }
 
@@ -105,7 +106,7 @@ impl HorizontalLayout {
 pub struct VerticalLayout {
     pub divide: f32,
     top: Transform,
-    bottom: Transform
+    bottom: Transform,
 }
 
 impl VerticalLayout {
@@ -114,12 +115,12 @@ impl VerticalLayout {
             divide,
             top: Transform {
                 translate: (0.0, 0.0),
-                scale: (1.0, divide)
+                scale: (1.0, divide),
             },
             bottom: Transform {
                 translate: (0.0, divide),
-                scale: (1.0, 1.0 - divide)
-            }
+                scale: (1.0, 1.0 - divide),
+            },
         }
     }
 

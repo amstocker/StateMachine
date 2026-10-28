@@ -1,92 +1,108 @@
-use rtrb::{RingBuffer, Producer, Consumer};
+use rtrb::{Consumer, Producer, PushError, RingBuffer};
 
-use crate::sound::{Sound, SoundMetadata, OutputSample, StereoFrame, MAX_SOUNDS};
+use crate::sound::{OutputSample, Sound, SoundMetadata, StereoFrame, MAX_SOUNDS};
 
+// Slots are append-only until phase 4 supplies resource retirement. There is no
+// replacement path that could drop an existing sample on the audio callback.
+struct AddSound<S: OutputSample> {
+    index: usize,
+    sound: Sound<S>,
+}
 
-enum SoundBankControlMessage<S> where S: OutputSample {
-    Set {
-        index: usize,
-        sound: Option<Sound<S>>
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SoundBankError {
+    Full,
+    QueueFull,
+    EngineDisconnected,
+}
+
+impl std::fmt::Display for SoundBankError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Full => "sound bank is full",
+            Self::QueueFull => "sound upload queue is full; try again",
+            Self::EngineDisconnected => "audio engine is disconnected",
+        })
     }
 }
+impl std::error::Error for SoundBankError {}
 
-pub struct SoundBankController<S> where S: OutputSample {
-    pub metadata: [Option<SoundMetadata>; MAX_SOUNDS],
-    producer: Producer<SoundBankControlMessage<S>>
+pub struct SoundBankController<S: OutputSample> {
+    metadata: [Option<SoundMetadata>; MAX_SOUNDS],
+    producer: Producer<AddSound<S>>,
 }
 
-impl<S> SoundBankController<S> where S: OutputSample {
-    pub fn add_sound(&mut self, sound: Sound<S>) {
-        for (i, slot) in &mut self.metadata.iter_mut().enumerate() {
-            if slot.is_none() {
-                let metadata = sound.metadata.clone();
-                *slot = Some(metadata);
-                self.producer.push(SoundBankControlMessage::Set {
-                    index: i,
-                    sound: Some(sound)
-                }).unwrap();
-                return;
-            }
+impl<S: OutputSample> SoundBankController<S> {
+    pub fn add_sound(&mut self, sound: Sound<S>) -> Result<usize, SoundBankError> {
+        if self.producer.is_abandoned() {
+            return Err(SoundBankError::EngineDisconnected);
         }
+        let index = self
+            .metadata
+            .iter()
+            .position(Option::is_none)
+            .ok_or(SoundBankError::Full)?;
+        let metadata = sound.metadata.clone();
+        self.producer
+            .push(AddSound { index, sound })
+            .map_err(|PushError::Full(_)| SoundBankError::QueueFull)?;
+        // Publish metadata only after the queue has accepted the asset.
+        self.metadata[index] = Some(metadata);
+        Ok(index)
     }
 
     pub fn get(&self, index: usize) -> Option<&SoundMetadata> {
-        let slot = self.metadata.get(index)?;
-        if let Some(sound_metadata) = slot {
-            Some(sound_metadata)
-        } else {
-            None
-        }
+        self.metadata.get(index)?.as_ref()
     }
 }
 
 pub struct SoundBankIndex {
     pub source_index: usize,
-    pub frame_index: usize
+    pub frame_index: usize,
 }
 
-pub struct SoundBank<S> where S: OutputSample {
+pub struct SoundBank<S: OutputSample> {
     sounds: [Option<Sound<S>>; MAX_SOUNDS],
-    consumer: Consumer<SoundBankControlMessage<S>>
+    consumer: Consumer<AddSound<S>>,
 }
 
-impl<S> SoundBank<S> where S: OutputSample {
-    pub fn new(sounds: Vec<Sound<S>>) -> (SoundBankController<S>, SoundBank<S>) {
-        let (producer, consumer) = RingBuffer::new(MAX_SOUNDS);
-        
-        let mut sound_bank_metadata = SoundBankController {
-            metadata: Default::default(),
-            producer
-        };
-        let mut sound_bank = SoundBank {
-            sounds: Default::default(),
-            consumer
-        };
-        
-        for sound in sounds {
-            sound_bank_metadata.add_sound(sound);
+impl<S: OutputSample> SoundBank<S> {
+    pub fn new(sounds: Vec<Sound<S>>) -> Result<(SoundBankController<S>, Self), SoundBankError> {
+        if sounds.len() > MAX_SOUNDS {
+            return Err(SoundBankError::Full);
         }
-        sound_bank.update();
-
-        (sound_bank_metadata, sound_bank)
+        let (producer, consumer) = RingBuffer::new(MAX_SOUNDS);
+        let mut controller = SoundBankController {
+            metadata: Default::default(),
+            producer,
+        };
+        let mut bank = Self {
+            sounds: Default::default(),
+            consumer,
+        };
+        for sound in sounds {
+            controller.add_sound(sound)?;
+        }
+        bank.update();
+        Ok((controller, bank))
     }
 
     pub fn update(&mut self) {
-        while let Ok(item) = self.consumer.pop() {
-            use SoundBankControlMessage::*;
-            match item {
-                Set { index, sound } => {
-                    self.sounds[index] = sound;
-                }
-            }
+        for _ in 0..MAX_SOUNDS {
+            let Ok(AddSound { index, sound }) = self.consumer.pop() else {
+                break;
+            };
+            // The private producer only emits valid, previously unused slots.
+            self.sounds[index] = Some(sound);
         }
     }
 
     pub fn get_frame(&self, index: SoundBankIndex) -> Option<StereoFrame<S>> {
-        if let Some(sound) = &self.sounds[index.source_index] {
-            return sound.data.get(index.frame_index).copied();
-        }
-        None
+        self.sounds
+            .get(index.source_index)?
+            .as_ref()?
+            .data
+            .get(index.frame_index)
+            .copied()
     }
 }
-

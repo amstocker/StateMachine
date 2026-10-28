@@ -1,18 +1,8 @@
-
-
-
-
-fn test() {
-
-}
-
+fn test() {}
 
 enum ComponentType {
-  Box,
-  Text,
-  
+    Box,
+    Text,
 }
 
-struct Component {
-
-}
+struct Component {}
