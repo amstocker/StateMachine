@@ -73,6 +73,12 @@ Sample previews should go through the audio engine using an explicit audition ro
 
 The custom WGPU renderer remains the intended rendering foundation, with glyphon planned for text. Symphonia and Rubato remain the planned decoding and sample-rate conversion libraries. These infrastructure choices support the composition experiment described here.
 
+**Visual design remains an exploration for later.**
+
+The images in [design](design/README.md) collect references for colors, textures, atmosphere, and styles to experiment with in the editor. They include technical diagrams, older audio interfaces and hardware, print-like textures, textured glass, and bold illustrated color and shadow. These are sources of inspiration without a settled palette or interface design.
+
+Interesting shaders and visual effects are part of the desired exploration. Keep the renderer open to optional material, lighting, texture, and motion experiments, including additional passes when appropriate. Keep those choices separate from the composition model and realtime audio behavior. Establish the core editor workflow before choosing the visual treatment.
+
 **The next architectural milestone should make the central experiment audible.**
 
 After stabilizing the prototype, build one complete example:

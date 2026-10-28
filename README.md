@@ -34,6 +34,8 @@ interface and musical semantics remain open to experimentation.
 - [Project vision](VISION.md) records the direction and open design questions.
 - [Implementation plan](IMPLEMENTATION_PLAN.md) orders the architecture changes,
   dependency migrations, and correctness fixes.
+- [Visual references](design/README.md) collect ideas for later colors, textures,
+  styles, and shader experiments.
 
 # Technology
 
